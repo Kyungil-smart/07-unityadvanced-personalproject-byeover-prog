@@ -1,14 +1,33 @@
-// UTF-8
 using UnityEngine;
 using GnalIhu.Rhythm;
 
 namespace _Game.Scripts.Rhythm
 {
+    public enum MonsterMovePattern
+    {
+        Normal,
+        MultiStep,
+        Wave
+    }
+
     [DisallowMultipleComponent]
     public sealed class NoteMonster : MonoBehaviour
     {
-        [Header("홉 이동")]
-        [Tooltip("스폰→히트라인까지 몇 비트에 걸쳐 이동할지")]
+        [Header("이동 패턴")]
+        [SerializeField] private MonsterMovePattern movePattern = MonsterMovePattern.Normal;
+        
+        [Tooltip("MultiStep 패턴일 때 한 번 도약에 걸리는 박자 수 (멧돼지=2, 뱀=3)")]
+        [Min(1f)]
+        [SerializeField] private float beatsPerHop = 1f;
+
+        [Tooltip("Wave 패턴일 때 위아래로 움직이는 진폭 (까마귀 전용)")]
+        [SerializeField] private float waveHeight = 1.5f;
+
+        [Tooltip("Wave 패턴일 때 위아래로 움직이는 속도 (까마귀 전용)")]
+        [SerializeField] private float waveFrequency = 1f;
+
+        [Header("도착 및 홉 설정")]
+        [Tooltip("스폰→히트라인까지 총 몇 비트에 걸쳐 이동할지")]
         [Min(1)]
         [SerializeField] private int beatsToTravel = 4;
 
@@ -124,8 +143,7 @@ namespace _Game.Scripts.Rhythm
 
         private void Update()
         {
-            if (!initialized || conductor == null) return;
-            if (!conductor.IsRunning) return;
+            if (!initialized || conductor == null || !conductor.IsRunning) return;
 
             double currentBeat = conductor.CurrentBeat;
 
@@ -139,10 +157,7 @@ namespace _Game.Scripts.Rhythm
                     return;
                 }
 
-                int hopIndex = Mathf.FloorToInt((float)beatProgress);
-                float hopFraction = (float)(beatProgress - hopIndex);
-
-                if (hopIndex >= beatsToTravel)
+                if (beatProgress >= beatsToTravel)
                 {
                     transform.position = hitPos;
 
@@ -152,16 +167,26 @@ namespace _Game.Scripts.Rhythm
                     return;
                 }
 
-                float startT = (float)hopIndex / beatsToTravel;
-                float endT = (float)(hopIndex + 1) / beatsToTravel;
-                float horizontalT = Mathf.Lerp(startT, endT, hopFraction);
+                float totalT = (float)(beatProgress / beatsToTravel);
+                Vector3 currentPos = Vector3.Lerp(spawnPos, hitPos, totalT);
+                float hopFraction = 0f;
 
-                Vector3 flatPos = Vector3.Lerp(spawnPos, hitPos, horizontalT);
+                if (movePattern == MonsterMovePattern.Normal || movePattern == MonsterMovePattern.MultiStep)
+                {
+                    float hopProgress = (float)(beatProgress / beatsPerHop);
+                    hopFraction = hopProgress - Mathf.Floor(hopProgress);
+                    
+                    float parabola = 4f * hopHeight * hopFraction * (1f - hopFraction);
+                    currentPos.y += parabola;
+                }
+                else if (movePattern == MonsterMovePattern.Wave)
+                {
+                    hopFraction = (float)(beatProgress - Mathf.Floor(beatProgress));
+                    float wave = Mathf.Sin((float)beatProgress * Mathf.PI * waveFrequency) * waveHeight;
+                    currentPos.y += wave;
+                }
 
-                float parabola = 4f * hopHeight * hopFraction * (1f - hopFraction);
-                flatPos.y += parabola;
-
-                transform.position = flatPos;
+                transform.position = currentPos;
 
                 float targetScaleY;
                 if (hopFraction < 0.1f) targetScaleY = squashY;

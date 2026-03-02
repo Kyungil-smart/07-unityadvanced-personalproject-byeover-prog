@@ -1,4 +1,3 @@
-// UTF-8
 using UnityEngine;
 
 namespace _Game.Scripts.Rhythm
@@ -56,7 +55,6 @@ namespace _Game.Scripts.Rhythm
         public void ConfigureSpeed(float speed)
         {
             runSpeed = Mathf.Max(0f, speed);
-            if (debugLog) Debug.Log($"[PlayerAutoRunner] ConfigureSpeed={runSpeed}", this);
         }
 
         public void StartAutoRun()
@@ -81,10 +79,8 @@ namespace _Game.Scripts.Rhythm
 
             isRunning = running;
 
-            if (animator != null && !string.IsNullOrEmpty(runBoolName))
+            if (animator != null && HasParameter(runBoolName))
                 animator.SetBool(runBoolName, isRunning);
-
-            if (debugLog) Debug.Log($"[PlayerAutoRunner] SetRunning={isRunning}, speed={runSpeed}", this);
         }
 
         private void ZeroXVelocity()
@@ -93,6 +89,25 @@ namespace _Game.Scripts.Rhythm
             Vector2 v = rb.velocity;
             v.x = 0f;
             rb.velocity = v;
+        }
+
+        private bool HasParameter(string paramName)
+        {
+            if (string.IsNullOrEmpty(paramName) || animator == null || !animator.gameObject.activeInHierarchy || animator.runtimeAnimatorController == null) 
+                return false;
+
+            try
+            {
+                foreach (AnimatorControllerParameter param in animator.parameters)
+                {
+                    if (param.name == paramName) return true;
+                }
+            }
+            catch 
+            { 
+                return false; 
+            }
+            return false;
         }
     }
 }

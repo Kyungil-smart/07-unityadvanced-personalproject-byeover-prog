@@ -34,6 +34,8 @@ public sealed class BeatStepMover : MonoBehaviour
     {
         if (events != null)
             events.Beat -= OnBeat;
+        
+        moving = false; 
     }
 
     private void OnBeat(BeatInfo info)

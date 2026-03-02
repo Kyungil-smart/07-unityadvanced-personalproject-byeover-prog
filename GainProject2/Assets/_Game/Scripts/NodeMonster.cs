@@ -9,9 +9,6 @@ public sealed class NodeMonster : MonoBehaviour
     [SerializeField] private string hitTrigger = "Hit";
     [SerializeField] private string missTrigger = "Miss";
 
-    [Header("콜라이더")]
-    [SerializeField, Tooltip("미스 후 데미지용 트리거 콜라이더")] private BoxCollider2D damageTriggerCollider;
-
     [Header("이동")]
     [SerializeField] private BeatStepMover stepMover;
 
@@ -40,9 +37,6 @@ public sealed class NodeMonster : MonoBehaviour
         if (stepMover != null && manager != null)
             stepMover.Initialize(manager.Events, manager.Settings);
 
-        if (damageTriggerCollider != null)
-            damageTriggerCollider.enabled = false;
-
         judgedHit = false;
         judgedMiss = false;
         returnTimer = 0f;
@@ -52,17 +46,20 @@ public sealed class NodeMonster : MonoBehaviour
     {
         transform.position = position;
 
-        if (spriteRenderer != null)
+        if (spriteRenderer != null && nodeSprite != null)
             spriteRenderer.sprite = nodeSprite;
-
-        if (damageTriggerCollider != null)
-            damageTriggerCollider.enabled = false;
 
         judgedHit = false;
         judgedMiss = false;
         returnTimer = 0f;
-
+        
         gameObject.SetActive(true);
+        
+        if (animator != null && animator.runtimeAnimatorController != null)
+        {
+            animator.Rebind();
+            animator.Update(0f);
+        }
     }
 
     public void Hit()
@@ -72,10 +69,11 @@ public sealed class NodeMonster : MonoBehaviour
         judgedHit = true;
         returnTimer = hitReturnDelay;
 
-        if (animator != null && !string.IsNullOrEmpty(hitTrigger))
+        if (animator != null && HasParameter(hitTrigger))
             animator.SetTrigger(hitTrigger);
 
-        gameManager.Events.RaiseNodeSuccess();
+        if (gameManager != null)
+            gameManager.Events.RaiseNodeSuccess();
     }
 
     public void Miss()
@@ -84,13 +82,11 @@ public sealed class NodeMonster : MonoBehaviour
 
         judgedMiss = true;
 
-        if (damageTriggerCollider != null)
-            damageTriggerCollider.enabled = true;
-
-        if (animator != null && !string.IsNullOrEmpty(missTrigger))
+        if (animator != null && HasParameter(missTrigger))
             animator.SetTrigger(missTrigger);
 
-        gameManager.Events.RaiseNodeMiss();
+        if (gameManager != null)
+            gameManager.Events.RaiseNodeMiss();
     }
 
     private void Update()
@@ -98,8 +94,7 @@ public sealed class NodeMonster : MonoBehaviour
         if (judgedHit)
         {
             returnTimer -= Time.deltaTime;
-            if (returnTimer <= 0f)
-                Return();
+            if (returnTimer <= 0f) Return();
             return;
         }
 
@@ -112,7 +107,6 @@ public sealed class NodeMonster : MonoBehaviour
     private void OnTriggerEnter2D(Collider2D other)
     {
         if (!judgedMiss) return;
-        if (damageTriggerCollider == null || !damageTriggerCollider.enabled) return;
 
         if (other.TryGetComponent(out PlayerHealth playerHealth))
         {
@@ -124,11 +118,23 @@ public sealed class NodeMonster : MonoBehaviour
     private void Return()
     {
         if (!gameObject.activeSelf) return;
-
-        if (damageTriggerCollider != null)
-            damageTriggerCollider.enabled = false;
-
         gameObject.SetActive(false);
         returnToPool?.Invoke(this);
+    }
+    
+    private bool HasParameter(string paramName)
+    {
+        if (string.IsNullOrEmpty(paramName) || animator == null || !animator.gameObject.activeInHierarchy || animator.runtimeAnimatorController == null) 
+            return false;
+
+        try
+        {
+            foreach (AnimatorControllerParameter param in animator.parameters)
+            {
+                if (param.name == paramName) return true;
+            }
+        }
+        catch { return false; }
+        return false;
     }
 }

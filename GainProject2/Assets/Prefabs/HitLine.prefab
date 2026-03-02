@@ -111,6 +111,7 @@ GameObject:
   m_Component:
   - component: {fileID: 7922434256612187762}
   - component: {fileID: 1754607276049302209}
+  - component: {fileID: 631714963543424287}
   - component: {fileID: 2433288282363301999}
   m_Layer: 0
   m_Name: JudgeAreea
@@ -179,6 +180,33 @@ BoxCollider2D:
   serializedVersion: 2
   m_Size: {x: 0.38292027, y: 0.63952756}
   m_EdgeRadius: 0
+--- !u!50 &631714963543424287
+Rigidbody2D:
+  serializedVersion: 4
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7324804711009209968}
+  m_BodyType: 1
+  m_Simulated: 1
+  m_UseFullKinematicContacts: 0
+  m_UseAutoMass: 0
+  m_Mass: 1
+  m_LinearDrag: 0
+  m_AngularDrag: 0.05
+  m_GravityScale: 0
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_Interpolate: 0
+  m_SleepingMode: 1
+  m_CollisionDetection: 0
+  m_Constraints: 0
 --- !u!114 &2433288282363301999
 MonoBehaviour:
   m_ObjectHideFlags: 0

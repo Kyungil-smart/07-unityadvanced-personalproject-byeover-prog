@@ -1,8 +1,5 @@
 using UnityEngine;
 
-
-//네임스페이스를 건게 잘한걸까?
-
 namespace _Game.Scripts.Rhythm
 {
     [DisallowMultipleComponent]
@@ -21,6 +18,7 @@ namespace _Game.Scripts.Rhythm
         [SerializeField] private string attackTriggerName = "Attack";
 
         private int _attackTriggerHash;
+        private bool _hasAttackParam;
 
         private void Awake()
         {
@@ -28,15 +26,28 @@ namespace _Game.Scripts.Rhythm
                 playerAnimator = GetComponentInChildren<Animator>();
 
             _attackTriggerHash = Animator.StringToHash(attackTriggerName);
+            _hasAttackParam = HasParameter(attackTriggerName);
         }
 
         private void Update()
         {
             if (Input.GetKeyDown(rhythmKey))
             {
-                if (playerAnimator != null)
+                if (playerAnimator != null && _hasAttackParam)
                     playerAnimator.SetTrigger(_attackTriggerHash);
             }
+        }
+
+        private bool HasParameter(string paramName)
+        {
+            if (string.IsNullOrEmpty(paramName) || playerAnimator == null || playerAnimator.runtimeAnimatorController == null) 
+                return false;
+
+            foreach (AnimatorControllerParameter param in playerAnimator.parameters)
+            {
+                if (param.name == paramName) return true;
+            }
+            return false;
         }
     }
 }

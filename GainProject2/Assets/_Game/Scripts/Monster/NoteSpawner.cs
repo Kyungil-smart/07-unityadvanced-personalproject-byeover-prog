@@ -11,6 +11,9 @@ public sealed class NoteSpawner : MonoBehaviour
     private readonly List<NodeMonster> actives = new List<NodeMonster>(128);
 
     private GameObject nodePrefab;
+    private GameObject[] randomPrefabs; // 랜덤 몬스터 배열
+    private string currentPattern;      // 현재 리듬 패턴
+    
     private Sprite nodeSprite;
     private Transform spawnPoint;
     private Transform activeRoot;
@@ -30,9 +33,12 @@ public sealed class NoteSpawner : MonoBehaviour
         activeRoot = activeParent;
         poolRoot = poolParent;
 
-        var prefabChanged = nodePrefab != stageData.NodeMonsterPrefab;
+        bool prefabChanged = (nodePrefab != stageData.NodeMonsterPrefab) || (randomPrefabs != stageData.RandomMonsterPrefabs);
 
         nodePrefab = stageData.NodeMonsterPrefab;
+        randomPrefabs = stageData.RandomMonsterPrefabs; // 랜덤 배열 할당
+        currentPattern = stageData.SpawnPattern;        // 패턴 할당
+        
         nodeSprite = stageData.NodeSprite;
         spawnEveryNBeats = Mathf.Max(1, stageData.SpawnEveryNBeats);
 
@@ -42,6 +48,7 @@ public sealed class NoteSpawner : MonoBehaviour
 
     public void StartSpawning()
     {
+        if (gameManager == null) gameManager = GameManager.Instance;
         if (gameManager == null || gameManager.Events == null) return;
 
         StopSpawning();
@@ -64,7 +71,6 @@ public sealed class NoteSpawner : MonoBehaviour
             if (node == null) continue;
             Release(node);
         }
-
         actives.Clear();
     }
 
@@ -73,20 +79,38 @@ public sealed class NoteSpawner : MonoBehaviour
         ClearAll();
         while (pool.Count > 0) pool.Dequeue();
 
-        if (nodePrefab == null) return;
+        if (nodePrefab == null && (randomPrefabs == null || randomPrefabs.Length == 0)) return;
 
         for (int i = 0; i < prewarm; i++)
         {
             var node = CreateNew();
-            Release(node);
+            if (node != null) Release(node);
         }
     }
 
     private NodeMonster CreateNew()
     {
-        var go = Instantiate(nodePrefab, poolRoot != null ? poolRoot : transform);
+        GameObject prefabToSpawn = nodePrefab;
+
+        // 랜덤 몬스터가 등록되어 있다면 무작위로 하나를 뽑아서 생성
+        if (randomPrefabs != null && randomPrefabs.Length > 0)
+        {
+            prefabToSpawn = randomPrefabs[Random.Range(0, randomPrefabs.Length)];
+        }
+
+        if (prefabToSpawn == null) return null;
+
+        var go = Instantiate(prefabToSpawn, poolRoot != null ? poolRoot : transform);
         var node = go.GetComponent<NodeMonster>();
-        node.Initialize(gameManager, Release);
+        
+        if (node == null)
+        {
+            Debug.LogError($"[NoteSpawner] 생성 실패! {prefabToSpawn.name} 프리팹에 'NodeMonster' 컴포넌트가 없습니다.", go);
+            go.SetActive(false);
+            return null;
+        }
+
+        node.Initialize(gameManager != null ? gameManager : GameManager.Instance, Release);
         go.SetActive(false);
         return node;
     }
@@ -95,20 +119,21 @@ public sealed class NoteSpawner : MonoBehaviour
     {
         NodeMonster node;
 
-        if (pool.Count > 0) node = pool.Dequeue();
-        else node = CreateNew();
+        if (pool.Count > 0) 
+            node = pool.Dequeue();
+        else 
+            node = CreateNew();
 
-        if (activeRoot != null)
+        if (node != null && activeRoot != null)
             node.transform.SetParent(activeRoot, true);
 
-        actives.Add(node);
+        if (node != null) actives.Add(node);
         return node;
     }
 
     private void Release(NodeMonster node)
     {
         if (node == null) return;
-
         actives.Remove(node);
 
         if (poolRoot != null)
@@ -120,18 +145,25 @@ public sealed class NoteSpawner : MonoBehaviour
 
     private void OnBeat(BeatInfo beatInfo)
     {
-        if (!running) return;
-        if (nodePrefab == null || spawnPoint == null) return;
+        if (!running || spawnPoint == null) return;
 
-        if (beatInfo.BeatIndex % spawnEveryNBeats != 0)
-            return;
+        // 패턴 문자열이 있을 경우 찰진 패턴 적용
+        if (!string.IsNullOrEmpty(currentPattern))
+        {
+            int index = beatInfo.BeatIndex % currentPattern.Length;
+            if (currentPattern[index] != '1') 
+                return; // '1'이 아니면 스폰하지 않고 쉽니다.
+        }
+        // 패턴이 없으면 기존 메트로놈 방식 사용
+        else
+        {
+            if (beatInfo.BeatIndex % spawnEveryNBeats != 0)
+                return;
+        }
 
         var node = Get();
-        node.Spawn(spawnPoint.position, nodeSprite);
+        if (node != null) node.Spawn(spawnPoint.position, nodeSprite);
     }
 
-    private void OnDestroy()
-    {
-        StopSpawning();
-    }
+    private void OnDestroy() => StopSpawning();
 }

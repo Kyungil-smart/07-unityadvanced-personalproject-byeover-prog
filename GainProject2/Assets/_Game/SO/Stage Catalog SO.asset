@@ -21,18 +21,26 @@ MonoBehaviour:
     firstBeatOffset: 4
     forcedSongLength: 4
     spawnEveryNBeats: 4
+    spawnPattern: 
     nodeMonsterPrefab: {fileID: 2579491219120451950, guid: 943307e84c4eb9649a9ad7dd0f1ae000, type: 3}
+    randomMonsterPrefabs: []
     bossPrefab: {fileID: 1503589839371492729, guid: 92041039d1cc9ec468ceecbdd3fe83f9, type: 3}
     obstacleType: 0
-  - stageIndex: 0
-    stageName: 
+  - stageIndex: 1
+    stageName: "\uB450\uBC88\uC9F8 \uD1F4\uB9C8"
     nodeSprite: {fileID: 21300000, guid: c96b7380946421246b83b39d4fd116f3, type: 3}
-    musicClip: {fileID: 8300000, guid: b0d5a230e9b02214e8c1ea0fa71c0d2b, type: 3}
+    musicClip: {fileID: 8300000, guid: b33358e83c8168a47b32e4eafea43cd8, type: 3}
     bpm: 130
-    firstBeatOffset: 4
-    forcedSongLength: 4
+    firstBeatOffset: 0
+    forcedSongLength: 0
     spawnEveryNBeats: 4
+    spawnPattern: 10001000100010001000100010101000101010001010100010101000111010001010110010101000101011001010111010101010110011001010101011111000110010101100101011001010111011101011001010110010101010101111111110101110101011101100110011101110101011101010111011110000111111101010101010101010110011001100110010110110101101101111111110000000
     nodeMonsterPrefab: {fileID: 2579491219120451950, guid: 943307e84c4eb9649a9ad7dd0f1ae000, type: 3}
+    randomMonsterPrefabs:
+    - {fileID: 5231908045794633167, guid: d3cb924702c90b043938d74031d6e6dd, type: 3}
+    - {fileID: 292485049382710945, guid: 0f58dedd3e8c57747bafd6812f3d1cd6, type: 3}
+    - {fileID: 3738170583685712614, guid: 7e2ea0f72427d4e4dbf238e38d6dfb4e, type: 3}
+    - {fileID: 2579491219120451950, guid: 943307e84c4eb9649a9ad7dd0f1ae000, type: 3}
     bossPrefab: {fileID: 1503589839371492729, guid: 855db52d0464db24ead6e51a12364596, type: 3}
     obstacleType: 0
   - stageIndex: 0
@@ -43,7 +51,9 @@ MonoBehaviour:
     firstBeatOffset: 0
     forcedSongLength: 0
     spawnEveryNBeats: 0
+    spawnPattern: 
     nodeMonsterPrefab: {fileID: 0}
+    randomMonsterPrefabs: []
     bossPrefab: {fileID: 0}
     obstacleType: 0
   - stageIndex: 0
@@ -54,7 +64,9 @@ MonoBehaviour:
     firstBeatOffset: 0
     forcedSongLength: 0
     spawnEveryNBeats: 0
+    spawnPattern: 
     nodeMonsterPrefab: {fileID: 0}
+    randomMonsterPrefabs: []
     bossPrefab: {fileID: 0}
     obstacleType: 0
   - stageIndex: 0
@@ -65,7 +77,9 @@ MonoBehaviour:
     firstBeatOffset: 0
     forcedSongLength: 0
     spawnEveryNBeats: 0
+    spawnPattern: 
     nodeMonsterPrefab: {fileID: 0}
+    randomMonsterPrefabs: []
     bossPrefab: {fileID: 0}
     obstacleType: 0
   - stageIndex: 0
@@ -76,7 +90,9 @@ MonoBehaviour:
     firstBeatOffset: 0
     forcedSongLength: 0
     spawnEveryNBeats: 0
+    spawnPattern: 
     nodeMonsterPrefab: {fileID: 0}
+    randomMonsterPrefabs: []
     bossPrefab: {fileID: 0}
     obstacleType: 0
   - stageIndex: 0
@@ -87,7 +103,9 @@ MonoBehaviour:
     firstBeatOffset: 0
     forcedSongLength: 0
     spawnEveryNBeats: 0
+    spawnPattern: 
     nodeMonsterPrefab: {fileID: 0}
+    randomMonsterPrefabs: []
     bossPrefab: {fileID: 0}
     obstacleType: 0
   - stageIndex: 0
@@ -98,7 +116,9 @@ MonoBehaviour:
     firstBeatOffset: 0
     forcedSongLength: 0
     spawnEveryNBeats: 0
+    spawnPattern: 
     nodeMonsterPrefab: {fileID: 0}
+    randomMonsterPrefabs: []
     bossPrefab: {fileID: 0}
     obstacleType: 0
   - stageIndex: 0
@@ -109,6 +129,21 @@ MonoBehaviour:
     firstBeatOffset: 0
     forcedSongLength: 0
     spawnEveryNBeats: 0
+    spawnPattern: 
     nodeMonsterPrefab: {fileID: 0}
+    randomMonsterPrefabs: []
+    bossPrefab: {fileID: 0}
+    obstacleType: 0
+  - stageIndex: 0
+    stageName: 
+    nodeSprite: {fileID: 0}
+    musicClip: {fileID: 0}
+    bpm: 0
+    firstBeatOffset: 0
+    forcedSongLength: 0
+    spawnEveryNBeats: 0
+    spawnPattern: 
+    nodeMonsterPrefab: {fileID: 0}
+    randomMonsterPrefabs: []
     bossPrefab: {fileID: 0}
     obstacleType: 0

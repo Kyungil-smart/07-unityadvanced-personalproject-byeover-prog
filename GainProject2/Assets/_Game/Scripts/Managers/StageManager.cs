@@ -5,28 +5,28 @@ using _Game.Scripts.Rhythm;
 public sealed class StageManager : MonoBehaviour
 {
     [Header("데이터")]
-    [SerializeField] private StageCatalogSO stageCatalog;
+    [SerializeField, Tooltip("스테이지 목록 데이터")] private StageCatalogSO stageCatalog;
 
     [Header("스폰 포인트")]
-    [SerializeField] private Transform bossSpawnPoint;
-    [SerializeField] private Transform nodeSpawnPoint;
+    [SerializeField, Tooltip("보스 생성 위치")] private Transform bossSpawnPoint;
+    [SerializeField, Tooltip("노드 생성 시작 위치")] private Transform nodeSpawnPoint;
 
     [Header("루트")]
-    [SerializeField] private Transform bossRoot;
-    [SerializeField] private Transform nodeActiveRoot;
-    [SerializeField] private Transform nodePoolRoot;
+    [SerializeField, Tooltip("생성된 보스의 부모 트랜스폼")] private Transform bossRoot;
+    [SerializeField, Tooltip("활성화된 노드들의 부모")] private Transform nodeActiveRoot;
+    [SerializeField, Tooltip("비활성 노드 풀의 부모")] private Transform nodePoolRoot;
 
     [Header("시스템")]
-    [SerializeField] private NoteSpawner noteSpawner;
-    [SerializeField] private LightningVfxPool lightningVfxPool;
+    [SerializeField, Tooltip("노드 스폰 관리자")] private NoteSpawner noteSpawner;
+    [SerializeField, Tooltip("번개 효과 풀")] private LightningVfxPool lightningVfxPool;
 
     [Header("플레이어")]
-    [SerializeField] private PlayerHealth playerHealth;
-    [SerializeField] private PlayerAutoRunner playerAutoRunner;
-    [SerializeField] private Transform clearLine;
+    [SerializeField, Tooltip("플레이어 체력 컴포넌트")] private PlayerHealth playerHealth;
+    [SerializeField, Tooltip("플레이어 자동 이동 컴포넌트")] private PlayerAutoRunner playerAutoRunner;
+    [SerializeField, Tooltip("클리어 판정 지점 (X 좌표)")] private Transform clearLine;
 
     [Header("UI")]
-    [SerializeField] private CanvasGroup clearUiGroup;
+    [SerializeField, Tooltip("클리어 UI 그룹")] private CanvasGroup clearUiGroup;
 
     private GameManager gameManager;
     private StageData currentStage;
@@ -93,6 +93,7 @@ public sealed class StageManager : MonoBehaviour
         {
             noteSpawner.StopSpawning();
             noteSpawner.ClearAll();
+            noteSpawner.Configure(currentStage, nodeSpawnPoint, nodeActiveRoot, nodePoolRoot);
         }
 
         SpawnBoss();
@@ -105,7 +106,6 @@ public sealed class StageManager : MonoBehaviour
 
         if (noteSpawner != null)
         {
-            noteSpawner.Configure(currentStage, nodeSpawnPoint, nodeActiveRoot, nodePoolRoot);
             noteSpawner.StartSpawning();
         }
 
@@ -152,6 +152,10 @@ public sealed class StageManager : MonoBehaviour
     private void OnSongEnded()
     {
         if (!stageRunning || clearing) return;
+
+        // 핵심 추가 1: 노래가 끝났을 때 플레이어가 죽은 상태라면 클리어 시퀀스(번개 연타 등)를 실행하지 않음
+        if (playerHealth != null && playerHealth.CurrentHp <= 0) return;
+
         StartCoroutine(ClearSequence());
     }
 
@@ -168,40 +172,44 @@ public sealed class StageManager : MonoBehaviour
         var hitCount = gameManager.Settings != null ? gameManager.Settings.FinisherHitCount : 24;
         var interval = gameManager.Settings != null ? gameManager.Settings.FinisherInterval : 0.05f;
 
+        // 번개 연타 시퀀스 (플레이어가 살아있을 때만 진입함)
         for (int i = 0; i < hitCount; i++)
         {
             gameManager.Events.RaiseNodeSuccess();
             if (boss != null) boss.LightningHit();
 
-            var end = Time.time + interval;
-            while (Time.time < end)
-                yield return null;
+            yield return new WaitForSeconds(interval);
         }
 
         if (boss != null)
             boss.FinishKill();
 
         var vanishDelay = gameManager.Settings != null ? gameManager.Settings.BossVanishDelay : 0.35f;
-        var vanishEnd = Time.time + vanishDelay;
-        while (Time.time < vanishEnd)
-            yield return null;
+        yield return new WaitForSeconds(vanishDelay);
 
         if (boss != null)
             boss.gameObject.SetActive(false);
 
-        if (playerAutoRunner != null)
-            playerAutoRunner.StartAutoRun();
+        // 핵심 추가 2: 달리기 애니메이터 관련 에러가 터져도 코루틴이 멈추지 않도록 try-catch로 방어
+        try
+        {
+            if (playerAutoRunner != null)
+                playerAutoRunner.StartAutoRun();
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogWarning($"[StageManager] 플레이어 달리기 실행 중 에러 발생 (무시됨): {e.Message}");
+        }
 
         if (clearLine != null && playerAutoRunner != null)
         {
+            // 플레이어가 클리어 라인을 넘을 때까지 대기
             while (playerAutoRunner.transform.position.x < clearLine.position.x)
                 yield return null;
         }
         else
         {
-            var tEnd = Time.time + 1f;
-            while (Time.time < tEnd)
-                yield return null;
+            yield return new WaitForSeconds(1.5f);
         }
 
         if (clearUiGroup != null)
