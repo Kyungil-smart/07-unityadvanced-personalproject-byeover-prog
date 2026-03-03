@@ -119,7 +119,34 @@ namespace GnalIhu.Rhythm
                 OnBeat?.Invoke(b);
             }
         }
+        private double _pausedTime;
 
+        public void PauseMusic()
+        {
+            if (!_running) return;
+            
+            _running = false;
+
+            if (musicSource != null)
+                musicSource.Pause();
+
+            _pausedTime = useDspTime ? AudioSettings.dspTime : Time.timeAsDouble;
+        }
+
+        public void ResumeMusic()
+        {
+            if (_running) return;
+            
+            _running = true;
+
+            double now = useDspTime ? AudioSettings.dspTime : Time.timeAsDouble;
+            _startTime += (now - _pausedTime);
+
+            if (musicSource != null)
+                musicSource.Play();
+        }
+
+        
 #if UNITY_EDITOR
         private void OnValidate()
         {
