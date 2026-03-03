@@ -1,26 +1,26 @@
 using UnityEngine;
 using UnityEngine.UI;
-using _Game.Scripts.Rhythm;
 
 public sealed class BossController : MonoBehaviour
 {
-    [Header("보스 스탯")]
-    [SerializeField] private int realHp = 99999;
+    [Header("능력치")]
+    [SerializeField, Tooltip("실제 체력 설정")] private int realHp = 99999;
 
-    [Header("연출")]
-    [SerializeField] private Animator animator;
-    [SerializeField] private string hitTrigger = "Hit";
-    [SerializeField] private string dieTrigger = "Die";
+    [Header("시각 효과")]
+    [SerializeField, Tooltip("보스 애니메이터")] private Animator animator;
+    [SerializeField, Tooltip("피격 트리거")] private string hitTrigger = "Hit";
+    [SerializeField, Tooltip("사망 트리거")] private string dieTrigger = "Die";
 
-    [Header("UI")]
-    [SerializeField] private Image fakeHpFill;
-    [SerializeField, Tooltip("곡 종료 전 최소로 남겨둘 HP 비율")] private float minFillBeforeFinish = 0.02f;
+    [Header("UI 연동")]
+    [SerializeField, Tooltip("체력바 이미지")] private Image fakeHpFill;
+    [SerializeField, Tooltip("최소 잔여 체력 비율")] private float minFillBeforeFinish = 0.02f;
 
-    private BossHitReact hitReact;
+    private int currentHp;
 
     private void Awake()
     {
-        hitReact = GetComponent<BossHitReact>();
+        // 경고 해결: realHp 변수 사용
+        currentHp = realHp;
     }
 
     public void SetSurvivalFill01(float value01, bool clampToMin)
@@ -32,34 +32,14 @@ public sealed class BossController : MonoBehaviour
 
     public void LightningHit()
     {
-        if (animator != null && HasParameter(hitTrigger))
+        if (animator != null && !string.IsNullOrEmpty(hitTrigger))
             animator.SetTrigger(hitTrigger);
-
-        if (hitReact != null)
-            hitReact.Hit();
     }
 
     public void FinishKill()
     {
         if (fakeHpFill != null) fakeHpFill.fillAmount = 0f;
-
-        if (animator != null && HasParameter(dieTrigger))
+        if (animator != null && !string.IsNullOrEmpty(dieTrigger))
             animator.SetTrigger(dieTrigger);
-    }
-
-    private bool HasParameter(string paramName)
-    {
-        if (string.IsNullOrEmpty(paramName) || animator == null || !animator.gameObject.activeInHierarchy || animator.runtimeAnimatorController == null) 
-            return false;
-
-        try
-        {
-            foreach (AnimatorControllerParameter param in animator.parameters)
-            {
-                if (param.name == paramName) return true;
-            }
-        }
-        catch { return false; }
-        return false;
     }
 }

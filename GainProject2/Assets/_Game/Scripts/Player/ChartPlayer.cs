@@ -7,43 +7,36 @@ namespace _Game.Scripts.Rhythm
     public sealed class ChartPlayer : MonoBehaviour
     {
         [Header("참조")]
-        [SerializeField] private RhythmConductor conductor;
-        [SerializeField] private TextAsset chartJson;
-        [SerializeField] private NotePool notePool;
-        [SerializeField] private JudgeSystem judgeSystem;
+        [SerializeField, Tooltip("리듬 지휘자")] private RhythmConductor conductor;
+        [SerializeField, Tooltip("차트 데이터(JSON)")] private TextAsset chartJson;
+        [SerializeField, Tooltip("노트 풀")] private NotePool notePool;
+        [SerializeField, Tooltip("판정 시스템")] private JudgeSystem judgeSystem;
 
-        [Header("레인")]
-        [SerializeField] private Transform spawnPoint;
-        [SerializeField] private Transform hitLine;
+        [Header("레인 설정")]
+        [SerializeField, Tooltip("노트 스폰 위치")] private Transform spawnPoint;
+        [SerializeField, Tooltip("노트 판정선 위치")] private Transform hitLine;
 
-        [Header("타이밍")]
-        [Tooltip("스폰 지점에서 히트 라인까지 도달하는 시간(초)")]
-        [Min(0.1f)]
-        [SerializeField] private float travelTimeSeconds = 1.2f;
+        [Header("타이밍 설정")]
+        [SerializeField, Min(0.1f), Tooltip("스폰 후 판정선까지 도달 시간(초)")] private float travelTimeSeconds = 1.2f;
 
-        [Header("차트 단위")]
-        [Tooltip("ON=noteTimes를 비트(Beat)로 해석합니다.\nOFF=noteTimes를 초(Seconds)로 해석합니다.")]
-        [SerializeField] private bool chartTimesAreBeats = true;
+        [Header("차트 설정")]
+        [SerializeField, Tooltip("활성화 시 차트 데이터를 박자(Beat) 단위로 해석")] private bool chartTimesAreBeats = true;
 
         [Header("디버그")]
-        [SerializeField] private bool autoPlay = true;
+        [SerializeField, Tooltip("시작 시 자동 재생 여부")] private bool autoPlay = true;
 
         private ChartData _chart;
         private int _spawnIndex;
 
         private void Awake()
         {
-            if (conductor == null)
-                conductor = FindFirstObjectByType<RhythmConductor>();
-
-            if (judgeSystem == null)
-                judgeSystem = FindFirstObjectByType<JudgeSystem>();
+            if (conductor == null) conductor = FindFirstObjectByType<RhythmConductor>();
+            if (judgeSystem == null) judgeSystem = FindFirstObjectByType<JudgeSystem>();
 
             if (!ChartDataLoader.TryLoad(chartJson, out _chart))
-                Debug.LogError("[ChartPlayer] 차트 JSON 로드 실패", this);
+                Debug.LogError("[ChartPlayer] 차트 데이터 로드에 실패했습니다.", this);
 
-            if (notePool != null)
-                notePool.Prewarm();
+            if (notePool != null) notePool.Prewarm();
         }
 
         private void Start()
@@ -64,14 +57,11 @@ namespace _Game.Scripts.Rhythm
             {
                 float chartValue = _chart.noteTimes[_spawnIndex];
 
-                // 차트 값 -> 히트 타임(초)
                 double hitTimeSec = chartTimesAreBeats
                     ? (double)chartValue * conductor.BeatDuration
                     : (double)chartValue;
 
-                // 스폰 시점(초)
-                double travelSec = travelTimeSeconds;
-                double spawnTimeSec = hitTimeSec - travelSec;
+                double spawnTimeSec = hitTimeSec - (double)travelTimeSeconds;
 
                 if (songTimeSec < spawnTimeSec) break;
 
@@ -86,8 +76,8 @@ namespace _Game.Scripts.Rhythm
             if (note == null) return;
 
             note.transform.SetParent(null, true);
-
-            note.SetBaseTravelTime(travelTimeSeconds);
+            
+            // SetBaseTravelTime 호출 제거 (NoteMonster.cs 로직에 맞춰 수정)
             note.Init(conductor, spawnPoint, hitLine, targetHitTimeSec);
 
             if (judgeSystem != null)

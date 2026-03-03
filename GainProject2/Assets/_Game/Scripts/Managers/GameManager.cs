@@ -6,16 +6,14 @@ public sealed class GameManager : MonoBehaviour
     public static GameManager Instance { get; private set; }
     public GameEventHub Events { get; private set; }
 
-    [Header("기본 SO")]
-    [SerializeField] private GameSettingsSO settings;
+    [Header("설정 참조")]
+    [SerializeField, Tooltip("전역 게임 설정")] private GameSettingsSO settings;
+    [SerializeField, Tooltip("오디오 매니저")] private AudioManager audioManager;
+    [SerializeField, Tooltip("세이브 매니저")] private SaveManager saveManager;
+    [SerializeField, Tooltip("세션 매니저")] private SessionGameManager sessionGameManager;
 
-    [Header("매니저")]
-    [SerializeField] private AudioManager audioManager;
-    [SerializeField] private SaveManager saveManager;
-    [SerializeField] private SessionGameManager sessionGameManager;
-
-    [Header("디버그")]
-    [SerializeField] private bool debugLog = true;
+    [Header("시스템 상태")]
+    [SerializeField, Tooltip("디버그 로그 출력 여부")] private bool debugLog = true;
 
     public GameSettingsSO Settings => settings;
     public AudioManager Audio => audioManager;
@@ -36,12 +34,6 @@ public sealed class GameManager : MonoBehaviour
         }
 
         Instance = this;
-
-        // 최적화: 부모가 있다면 해제하여 DontDestroyOnLoad 에러 방지
-        if (transform.parent != null)
-        {
-            transform.SetParent(null);
-        }
         DontDestroyOnLoad(gameObject);
 
         Events ??= new GameEventHub();
@@ -57,7 +49,7 @@ public sealed class GameManager : MonoBehaviour
     {
         CurrentState = state;
         Events.RaiseGameStateChanged(state);
-        if (debugLog) Debug.Log($"[GameManager] State: {state}");
+        if (debugLog) Debug.Log($"[GameManager] 상태 변경: {state}", this);
     }
 
     public void RequestStage(int stageIndex)
@@ -67,9 +59,17 @@ public sealed class GameManager : MonoBehaviour
         SetState(GameState.StageLoading);
     }
 
+    // 에러 해결: UI에서 호출하는 스테이지 재시작 메서드
+    public void RestartCurrentStage()
+    {
+        if (sessionGameManager == null) return;
+        RequestStage(sessionGameManager.CurrentStageIndex);
+    }
+
     public void SetPaused(bool paused)
     {
         if (paused == IsPaused) return;
+
         IsPaused = paused;
         Time.timeScale = paused ? 0f : 1f;
 
@@ -84,16 +84,6 @@ public sealed class GameManager : MonoBehaviour
         {
             SetState(stateBeforePause != GameState.None ? stateBeforePause : GameState.StagePlaying);
         }
-    }
-
-    public void FailStageAndRestart()
-    {
-        if (sessionGameManager == null) return;
-        if (audioManager != null) audioManager.StopStageMusic();
-        SetPaused(false);
-        SetState(GameState.StageFailed);
-        Events.RaiseStageEnded(sessionGameManager.CurrentStageIndex);
-        RequestStage(sessionGameManager.CurrentStageIndex);
     }
 
     public void QuitGame()

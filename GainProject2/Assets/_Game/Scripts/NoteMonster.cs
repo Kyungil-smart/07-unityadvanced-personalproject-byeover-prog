@@ -3,117 +3,47 @@ using GnalIhu.Rhythm;
 
 namespace _Game.Scripts.Rhythm
 {
-    public enum MonsterMovePattern
-    {
-        Normal,
-        MultiStep,
-        Wave
-    }
-
     [DisallowMultipleComponent]
     public sealed class NoteMonster : MonoBehaviour
     {
-        [Header("이동 패턴")]
-        [SerializeField] private MonsterMovePattern movePattern = MonsterMovePattern.Normal;
-        
-        [Tooltip("MultiStep 패턴일 때 한 번 도약에 걸리는 박자 수 (멧돼지=2, 뱀=3)")]
-        [Min(1f)]
-        [SerializeField] private float beatsPerHop = 1f;
+        [Header("이동 데이터")]
+        [SerializeField, Min(1), Tooltip("도달 소요 박자")] private int beatsToTravel = 4;
+        [SerializeField, Min(0f), Tooltip("홉 높이")] private float hopHeight = 0.35f;
 
-        [Tooltip("Wave 패턴일 때 위아래로 움직이는 진폭 (까마귀 전용)")]
-        [SerializeField] private float waveHeight = 1.5f;
-
-        [Tooltip("Wave 패턴일 때 위아래로 움직이는 속도 (까마귀 전용)")]
-        [SerializeField] private float waveFrequency = 1f;
-
-        [Header("도착 및 홉 설정")]
-        [Tooltip("스폰→히트라인까지 총 몇 비트에 걸쳐 이동할지")]
-        [Min(1)]
-        [SerializeField] private int beatsToTravel = 4;
-
-        [Tooltip("홉 높이 (월드 유닛)")]
-        [Min(0f)]
-        [SerializeField] private float hopHeight = 0.35f;
-
-        [Header("스쿼시 & 스트레치")]
-        [Tooltip("착지 시 스쿼시 (Y 스케일 배수, 1=변형 없음)")]
-        [SerializeField] private float squashY = 0.75f;
-
-        [Tooltip("점프 정점 스트레치 (Y 스케일 배수)")]
-        [SerializeField] private float stretchY = 1.2f;
-
-        [Tooltip("스쿼시 복원 속도")]
-        [SerializeField] private float squashRecoverSpeed = 12f;
-
-        [Header("미스 처리")]
-        [Tooltip("미스 후 플레이어까지 몇 비트에 걸쳐 이동할지")]
-        [Min(1)]
-        [SerializeField] private int beatsToPlayerAfterMiss = 2;
-
-        [Tooltip("미스 후 플레이어에게 적용할 데미지")]
-        [Min(1)]
-        [SerializeField] private int missDamage = 1;
-
-        [Tooltip("미스 후 플레이어 충돌 트리거(없으면 루트 콜라이더를 트리거로 사용)")]
-        [SerializeField] private Collider2D damageTrigger;
-
-        [Tooltip("플레이어 태그(비우면 태그 체크 안 함)")]
-        [SerializeField] private string playerTag = "Player";
-
-        [Header("디버그")]
-        [Tooltip("너무 늦었을 때 강제 회수(비트). 0 이하면 사용 안 함")]
-        [SerializeField] private float despawnIfLateBeats = 0f;
+        [Header("실패 데이터")]
+        [SerializeField, Min(1), Tooltip("실패 후 플레이어까지 도달 박자")] private int beatsToPlayerAfterMiss = 2;
+        [SerializeField, Min(1), Tooltip("실패 시 데미지")] private int missDamage = 1;
+        [SerializeField, Tooltip("플레이어 태그")] private string playerTag = "Player";
 
         private NotePool pool;
         private RhythmConductor conductor;
-
         private Vector3 spawnPos;
         private Vector3 hitPos;
-
         private double targetHitBeat;
         private double spawnBeat;
-
         private bool initialized;
         private bool judged;
         private bool missed;
-
-        private Vector3 baseScale;
-        private float currentScaleY;
-
         private Transform playerTarget;
         private IDamageable playerDamageable;
 
         public bool IsJudged => judged;
-        public bool IsMissed => missed;
         public double TargetHitTime { get; private set; }
 
         public void SetPool(NotePool p) => pool = p;
-        public void SetBaseTravelTime(float seconds) { }
 
         public void Init(RhythmConductor c, Transform spawnPoint, Transform hitLine, double targetHitTimeSec)
         {
             conductor = c;
-
             spawnPos = spawnPoint != null ? spawnPoint.position : transform.position;
             hitPos = hitLine != null ? hitLine.position : spawnPos;
-
             TargetHitTime = targetHitTimeSec;
-
             targetHitBeat = TargetHitTime / conductor.BeatDuration;
-            spawnBeat = targetHitBeat - beatsToTravel;
-
-            baseScale = transform.localScale;
-            currentScaleY = 1f;
+            spawnBeat = targetHitBeat - (double)beatsToTravel;
 
             judged = false;
             missed = false;
             initialized = true;
-
-            if (damageTrigger != null)
-            {
-                damageTrigger.isTrigger = true;
-                damageTrigger.enabled = false;
-            }
 
             transform.position = spawnPos;
             gameObject.SetActive(true);
@@ -125,22 +55,6 @@ namespace _Game.Scripts.Rhythm
             playerDamageable = damageable;
         }
 
-        public void Hit()
-        {
-            if (!initialized || judged) return;
-            judged = true;
-            Despawn();
-        }
-
-        public void Miss()
-        {
-            if (!initialized || judged || missed) return;
-            missed = true;
-
-            if (damageTrigger != null)
-                damageTrigger.enabled = true;
-        }
-
         private void Update()
         {
             if (!initialized || conductor == null || !conductor.IsRunning) return;
@@ -150,110 +64,36 @@ namespace _Game.Scripts.Rhythm
             if (!missed)
             {
                 double beatProgress = currentBeat - spawnBeat;
+                if (beatProgress < 0) return;
 
-                if (beatProgress < 0)
-                {
-                    transform.position = spawnPos;
-                    return;
-                }
+                int hopIndex = Mathf.FloorToInt((float)beatProgress);
+                float hopFraction = (float)(beatProgress - hopIndex);
 
-                if (beatProgress >= beatsToTravel)
+                if (hopIndex >= beatsToTravel)
                 {
                     transform.position = hitPos;
-
-                    if (!judged && despawnIfLateBeats > 0f && currentBeat > targetHitBeat + despawnIfLateBeats)
-                        Despawn();
-
                     return;
                 }
 
-                float totalT = (float)(beatProgress / beatsToTravel);
-                Vector3 currentPos = Vector3.Lerp(spawnPos, hitPos, totalT);
-                float hopFraction = 0f;
-
-                if (movePattern == MonsterMovePattern.Normal || movePattern == MonsterMovePattern.MultiStep)
-                {
-                    float hopProgress = (float)(beatProgress / beatsPerHop);
-                    hopFraction = hopProgress - Mathf.Floor(hopProgress);
-                    
-                    float parabola = 4f * hopHeight * hopFraction * (1f - hopFraction);
-                    currentPos.y += parabola;
-                }
-                else if (movePattern == MonsterMovePattern.Wave)
-                {
-                    hopFraction = (float)(beatProgress - Mathf.Floor(beatProgress));
-                    float wave = Mathf.Sin((float)beatProgress * Mathf.PI * waveFrequency) * waveHeight;
-                    currentPos.y += wave;
-                }
-
-                transform.position = currentPos;
-
-                float targetScaleY;
-                if (hopFraction < 0.1f) targetScaleY = squashY;
-                else if (hopFraction > 0.3f && hopFraction < 0.7f) targetScaleY = stretchY;
-                else targetScaleY = 1f;
-
-                currentScaleY = Mathf.Lerp(currentScaleY, targetScaleY, Time.deltaTime * squashRecoverSpeed);
-
-                float scaleX = 1f / Mathf.Max(0.5f, currentScaleY);
-                transform.localScale = new Vector3(baseScale.x * scaleX, baseScale.y * currentScaleY, baseScale.z);
-                return;
+                float horizontalT = (float)(beatProgress / (double)beatsToTravel);
+                Vector3 flatPos = Vector3.Lerp(spawnPos, hitPos, horizontalT);
+                flatPos.y += 4f * hopHeight * hopFraction * (1f - hopFraction);
+                transform.position = flatPos;
             }
-
-            if (playerTarget == null)
+            else
             {
-                Despawn();
-                return;
+                if (playerTarget == null) return;
+
+                // 에러 해결: 명시적 float 형변환
+                float missProgress = (float)(currentBeat - targetHitBeat); 
+                float t = Mathf.Clamp01(missProgress / (float)beatsToPlayerAfterMiss);
+                transform.position = Vector3.Lerp(hitPos, playerTarget.position, t);
             }
-
-            double missStartBeat = targetHitBeat;
-            double missProgress = currentBeat - missStartBeat;
-
-            if (missProgress < 0)
-            {
-                transform.position = hitPos;
-                transform.localScale = baseScale;
-                return;
-            }
-
-            float t = Mathf.Clamp01((float)(missProgress / beatsToPlayerAfterMiss));
-            transform.position = Vector3.Lerp(hitPos, playerTarget.position, t);
-            transform.localScale = baseScale;
-        }
-
-        private void OnTriggerEnter2D(Collider2D other)
-        {
-            if (!initialized || !missed || judged) return;
-            if (playerTarget == null || playerDamageable == null) return;
-
-            var otherRoot = other.transform.root;
-            var playerRoot = playerTarget.root;
-
-            bool sameRoot = otherRoot == playerRoot;
-            bool sameTransform = other.transform == playerTarget;
-
-            bool tagOk = true;
-            if (!string.IsNullOrWhiteSpace(playerTag))
-                tagOk = otherRoot.CompareTag(playerTag) || other.CompareTag(playerTag);
-
-            if (!tagOk) return;
-            if (!sameRoot && !sameTransform) return;
-
-            playerDamageable.ApplyDamage(missDamage);
-            Despawn();
         }
 
         public void Despawn()
         {
             initialized = false;
-            judged = false;
-            missed = false;
-
-            transform.localScale = baseScale;
-
-            if (damageTrigger != null)
-                damageTrigger.enabled = false;
-
             if (pool != null) pool.Return(this);
             else gameObject.SetActive(false);
         }
