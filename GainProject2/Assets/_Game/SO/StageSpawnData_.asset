@@ -16,12 +16,16 @@ MonoBehaviour:
   lane2Prefab: {fileID: 5231908045794633167, guid: d3cb924702c90b043938d74031d6e6dd, type: 3}
   lane3Prefab: {fileID: 2579491219120451950, guid: 943307e84c4eb9649a9ad7dd0f1ae000, type: 3}
   lane4Prefab: {fileID: 3738170583685712614, guid: 7e2ea0f72427d4e4dbf238e38d6dfb4e, type: 3}
+  lane1RandomPrefabs: []
+  lane2RandomPrefabs: []
+  lane3RandomPrefabs: []
+  lane4RandomPrefabs: []
   spawnPattern:
   - lane1: 0
     lane2: 1
     lane3: 1
     lane4: 0
-  - lane1: 1
+  - lane1: 0
     lane2: 1
     lane3: 1
-    lane4: 1
+    lane4: 0

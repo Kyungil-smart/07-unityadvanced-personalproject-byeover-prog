@@ -24,16 +24,20 @@ public class GameBootstrap : MonoBehaviour
 
     private void InitializeGame()
     {
+        // 1. 세션 매니저 초기화
         if (sessionManager != null && gameManager != null)
         {
             sessionManager.Initialize(gameManager);
         }
         
-        if (stageManager != null)
+        // 💡 2. 해결의 핵심: StageManager에게 먼저 GameManager를 쥐여줘야(Initialize) Null 에러가 안 납니다!
+        if (stageManager != null && gameManager != null)
         {
-            stageManager.StartStage(0); 
+            stageManager.Initialize(gameManager); // 먼저 주입!
+            stageManager.StartStage(0);           // 그 다음 시작!
         }
         
+        // 3. 리듬 시작
         if (rhythmConductor != null && !rhythmConductor.IsRunning)
         {
             rhythmConductor.Play();

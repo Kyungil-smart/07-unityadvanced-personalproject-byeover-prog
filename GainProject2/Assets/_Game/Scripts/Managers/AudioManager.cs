@@ -12,7 +12,7 @@ public sealed class AudioManager : MonoBehaviour
     [SerializeField] private AudioClip missClip;
 
     [Header("효과음 설정")]
-    [SerializeField, Tooltip("매 박자마다 비트 효과음을 재생할지 여부")] 
+    [SerializeField, Tooltip("매 박자마다 비트 효과음을 재생할지 여부")]
     private bool playBeatTick = true;
 
     [Header("정밀 재생")]
@@ -36,9 +36,33 @@ public sealed class AudioManager : MonoBehaviour
     {
         gameManager = manager;
 
+        AutoBindSourcesIfNeeded();
+
         gameManager.Events.Beat += OnBeat;
         gameManager.Events.NodeSuccess += OnNodeSuccess;
         gameManager.Events.NodeMiss += OnNodeMiss;
+    }
+
+    private void Awake()
+    {
+        AutoBindSourcesIfNeeded();
+    }
+
+    private void AutoBindSourcesIfNeeded()
+    {
+        if (musicSource == null)
+        {
+            var go = GameObject.Find("BGM_Audio");
+            if (go != null) musicSource = go.GetComponent<AudioSource>();
+        }
+
+        if (sfxSource == null)
+        {
+            var go = GameObject.Find("SFX_Audio");
+            if (go != null) sfxSource = go.GetComponent<AudioSource>();
+        }
+
+        if (musicSource == null) musicSource = GetComponent<AudioSource>();
     }
 
     private void OnDestroy()
@@ -53,6 +77,8 @@ public sealed class AudioManager : MonoBehaviour
 
     public void PlayStageMusic(AudioClip clip, float stageBpm, float stageFirstBeatOffset, float forcedSongLengthSeconds)
     {
+        AutoBindSourcesIfNeeded();
+
         if (musicSource == null || clip == null) return;
 
         musicSource.Stop();
@@ -72,12 +98,14 @@ public sealed class AudioManager : MonoBehaviour
         beatIndex = 0;
         nextBeatDspTime = dspStartTime + firstBeatOffset;
 
-        var clipLen = (double)clip.length;
+        double clipLen = clip.length;
         songLength = forcedSongLengthSeconds > 0f ? forcedSongLengthSeconds : clipLen;
     }
 
     public void StopStageMusic()
     {
+        AutoBindSourcesIfNeeded();
+
         if (musicSource == null) return;
 
         musicSource.Stop();
@@ -87,6 +115,8 @@ public sealed class AudioManager : MonoBehaviour
 
     public void SetPaused(bool paused)
     {
+        AutoBindSourcesIfNeeded();
+
         if (musicSource == null) return;
 
         if (paused) musicSource.Pause();
@@ -97,11 +127,11 @@ public sealed class AudioManager : MonoBehaviour
     {
         if (!scheduled) return;
 
-        var now = AudioSettings.dspTime;
+        double now = AudioSettings.dspTime;
 
         if (!songEndedRaised)
         {
-            var songDspTime = now - dspStartTime;
+            double songDspTime = now - dspStartTime;
             if (songDspTime >= songLength)
             {
                 songEndedRaised = true;
@@ -111,7 +141,7 @@ public sealed class AudioManager : MonoBehaviour
 
         if (now < nextBeatDspTime) return;
 
-        var beatDur = (float)beatDuration;
+        float beatDur = (float)beatDuration;
 
         while (now >= nextBeatDspTime)
         {

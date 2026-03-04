@@ -1,6 +1,6 @@
 using UnityEngine;
 
-[CreateAssetMenu(menuName = "리듬게임/스테이지 카탈로그")]
+[CreateAssetMenu(menuName = "리듬 도사/스테이지 카탈로그")]
 public sealed class StageCatalogSO : ScriptableObject
 {
     [Header("스테이지")]
@@ -19,6 +19,12 @@ public sealed class StageCatalogSO : ScriptableObject
                 stageData = stages[i];
                 return true;
             }
+        }
+
+        if (stageIndex >= 0 && stageIndex < stages.Length)
+        {
+            stageData = stages[stageIndex];
+            return true;
         }
 
         return false;

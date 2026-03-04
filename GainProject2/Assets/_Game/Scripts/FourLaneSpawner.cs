@@ -17,6 +17,9 @@ namespace _Game.Scripts.System
         [SerializeField] private Transform lane3Spawn;
         [SerializeField] private Transform lane4Spawn;
 
+        [Header("디버그")]
+        [SerializeField, Tooltip("연결 누락 경고 로그")] private bool logWarnings = true;
+
         private void OnEnable()
         {
             if (conductor != null) conductor.OnBeat += HandleBeat;
@@ -30,23 +33,34 @@ namespace _Game.Scripts.System
         private void HandleBeat(int beatIndex)
         {
             if (currentStageData == null || beatIndex < 0) return;
-            if (currentStageData.spawnPattern.Count == 0) return;
+            if (currentStageData.spawnPattern == null || currentStageData.spawnPattern.Count == 0) return;
 
             int patternIndex = beatIndex % currentStageData.spawnPattern.Count;
             var currentBeatData = currentStageData.spawnPattern[patternIndex];
 
-            if (currentBeatData.lane1) SpawnMonster(currentStageData.lane1Prefab, lane1Spawn);
-            if (currentBeatData.lane2) SpawnMonster(currentStageData.lane2Prefab, lane2Spawn);
-            if (currentBeatData.lane3) SpawnMonster(currentStageData.lane3Prefab, lane3Spawn);
-            if (currentBeatData.lane4) SpawnMonster(currentStageData.lane4Prefab, lane4Spawn);
+            if (currentBeatData.lane1) SpawnLane(1, lane1Spawn);
+            if (currentBeatData.lane2) SpawnLane(2, lane2Spawn);
+            if (currentBeatData.lane3) SpawnLane(3, lane3Spawn);
+            if (currentBeatData.lane4) SpawnLane(4, lane4Spawn);
         }
 
-        private void SpawnMonster(GameObject prefab, Transform spawnPoint)
+        private void SpawnLane(int laneIndex, Transform spawnPoint)
         {
-            if (prefab == null || spawnPoint == null) return;
+            if (spawnPoint == null)
+            {
+                if (logWarnings) Debug.LogWarning($"[FourLaneSpawner] SpawnPoint 누락: Lane {laneIndex}", this);
+                return;
+            }
+
+            var prefab = currentStageData != null ? currentStageData.GetLanePrefab(laneIndex) : null;
+            if (prefab == null)
+            {
+                if (logWarnings) Debug.LogWarning($"[FourLaneSpawner] Prefab 누락: Lane {laneIndex} (StageSpawnDataSO 확인)", this);
+                return;
+            }
 
             GameObject monsterObj = Instantiate(prefab, spawnPoint.position, spawnPoint.rotation);
-            
+
             var ghost = monsterObj.GetComponent<GhostMover>();
             if (ghost != null) ghost.Initialize(conductor);
 

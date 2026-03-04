@@ -29,10 +29,29 @@ public sealed class NodeMonster : MonoBehaviour
 
     public bool IsJudged => judgedHit || judgedMiss;
 
+    private void Awake()
+    {
+        cachedMovers = GetComponents<MonoBehaviour>();
+        EnsureInitialized();
+    }
+
+    private void OnEnable()
+    {
+        EnsureInitialized();
+
+        if (damageTriggerCollider != null)
+            damageTriggerCollider.enabled = false;
+
+        judgedHit = false;
+        judgedMiss = false;
+        returnTimer = 0f;
+    }
+
     public void Initialize(GameManager manager, Action<NodeMonster> onReturn)
     {
         gameManager = manager;
         returnToPool = onReturn;
+
         missDamage = manager != null && manager.Settings != null ? manager.Settings.MissDamage : 1;
 
         if (damageTriggerCollider != null)
@@ -41,46 +60,81 @@ public sealed class NodeMonster : MonoBehaviour
         judgedHit = false;
         judgedMiss = false;
         returnTimer = 0f;
-        
-        cachedMovers = GetComponents<MonoBehaviour>();
+
+        cachedMovers = cachedMovers != null ? cachedMovers : GetComponents<MonoBehaviour>();
+    }
+
+    public void Spawn(Vector3 position, Sprite sprite)
+    {
+        transform.position = position;
+
+        if (spriteRenderer != null && sprite != null)
+            spriteRenderer.sprite = sprite;
+
+        if (damageTriggerCollider != null)
+            damageTriggerCollider.enabled = false;
+
+        judgedHit = false;
+        judgedMiss = false;
+        returnTimer = 0f;
+
+        if (cachedMovers != null)
+        {
+            foreach (var mover in cachedMovers)
+            {
+                if (mover != this && mover != null)
+                    mover.enabled = true;
+            }
+        }
+
+        gameObject.SetActive(true);
     }
 
     public void Hit()
     {
         if (IsJudged) return;
 
+        EnsureInitialized();
+
         judgedHit = true;
         returnTimer = hitReturnDelay;
-        StopMovement(); // 타격 시 즉시 멈춤
+        StopMovement();
 
         if (animator != null && !string.IsNullOrEmpty(hitTrigger))
-            animator.SetTrigger(hitTrigger);
+            AnimatorParamUtil.TrySetTrigger(animator, hitTrigger);
 
-        if (gameManager != null) gameManager.Events.RaiseNodeSuccess();
+        if (gameManager != null)
+            gameManager.Events.RaiseNodeSuccess();
     }
 
     public void Miss()
     {
         if (IsJudged) return;
 
+        EnsureInitialized();
+
         judgedMiss = true;
-        StopMovement(); // 미스 시 즉시 멈춤
 
         if (damageTriggerCollider != null)
             damageTriggerCollider.enabled = true;
 
-        if (animator != null && !string.IsNullOrEmpty(missTrigger))
-            animator.SetTrigger(missTrigger);
+        AnimatorParamUtil.TrySetTrigger(animator, missTrigger);
+    }
 
-        if (gameManager != null) gameManager.Events.RaiseNodeMiss();
+    private void EnsureInitialized()
+    {
+        if (gameManager == null) gameManager = GameManager.Instance;
+        if (missDamage <= 0) missDamage = gameManager != null && gameManager.Settings != null ? gameManager.Settings.MissDamage : 1;
     }
 
     private void StopMovement()
     {
         if (cachedMovers == null) return;
+
         foreach (var mover in cachedMovers)
         {
-            if (mover != this) mover.enabled = false; // 다른 이동 스크립트를 전부 끕니다
+            if (mover != this && mover != null)
+                mover.enabled = false;
         }
     }
 
@@ -120,10 +174,7 @@ public sealed class NodeMonster : MonoBehaviour
 
         gameObject.SetActive(false);
 
-        // 풀링이 없으면 완전히 삭제하여 좀비 몬스터 방지
-        if (returnToPool != null)
-            returnToPool.Invoke(this);
-        else
-            Destroy(gameObject);
+        if (returnToPool != null) returnToPool.Invoke(this);
+        else Destroy(gameObject);
     }
 }

@@ -16,24 +16,24 @@ MonoBehaviour:
   loop: 1
   cues:
   - beat: 0
-    subBeat: 0
+    subBeat: 0.5
     laneId: Node_00
     prefab: {fileID: 2579491219120451950, guid: 943307e84c4eb9649a9ad7dd0f1ae000, type: 3}
     count: 1
     withinCueSpacingBeats: 0
-  - beat: 0
-    subBeat: 0
+  - beat: 1
+    subBeat: 0.5
     laneId: Node_01
     prefab: {fileID: 5231908045794633167, guid: d3cb924702c90b043938d74031d6e6dd, type: 3}
     count: 1
     withinCueSpacingBeats: 0.8
-  - beat: 0
-    subBeat: 0
+  - beat: 2
+    subBeat: 0.5
     laneId: Node_02
     prefab: {fileID: 292485049382710945, guid: 0f58dedd3e8c57747bafd6812f3d1cd6, type: 3}
     count: 4
     withinCueSpacingBeats: 0.5
-  - beat: 0
+  - beat: 4
     subBeat: 0.5
     laneId: Node_02
     prefab: {fileID: 3738170583685712614, guid: 7e2ea0f72427d4e4dbf238e38d6dfb4e, type: 3}

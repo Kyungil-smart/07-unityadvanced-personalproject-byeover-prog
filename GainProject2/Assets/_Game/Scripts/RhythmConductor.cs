@@ -31,25 +31,29 @@ namespace GnalIhu.Rhythm
         public event Action<int> OnBeat;
 
         private bool _running;
+        private bool _isPaused;
         private double _startTime;
+        private double _pauseStartTime;
         private int _lastBeatIndex = -1;
 
         public bool IsRunning => _running;
 
         public double BeatDuration => 60.0 / Math.Max(0.0001, bpm);
-
-        /// <summary>0박 기준 경과 시간(초). leadIn 동안은 음수.</summary>
+        
         public double SongTime
         {
             get
             {
-                if (!_running) return 0;
+                if (!_running && !_isPaused) return 0;
+                
+                // 일시정지 중이면 멈췄던 시점의 시간을 반환합니다.
+                if (_isPaused) return _pauseStartTime - _startTime; 
+
                 double now = useDspTime ? AudioSettings.dspTime : Time.timeAsDouble;
                 return now - _startTime;
             }
         }
-
-        /// <summary>0박 기준 경과 박(Beat). leadIn 동안은 음수.</summary>
+        
         public double CurrentBeat => SongTime / BeatDuration;
 
         private void Start()
@@ -58,17 +62,27 @@ namespace GnalIhu.Rhythm
                 Play();
         }
 
+        public void SetStageMusic(AudioClip clip, float stageBpm, float offset)
+        {
+            if (musicSource != null)
+            {
+                musicSource.clip = clip;
+            }
+            bpm = stageBpm;
+            leadInSeconds = offset;
+        }
+
         public void Play()
         {
             if (_running) return;
 
             _running = true;
+            _isPaused = false;
             _lastBeatIndex = -1;
 
             double now = useDspTime ? AudioSettings.dspTime : Time.timeAsDouble;
             _startTime = now + leadInSeconds;
 
-            // 오디오가 있으면 시작 시점에 맞춰 재생
             if (musicSource != null)
             {
                 musicSource.Stop();
@@ -96,10 +110,43 @@ namespace GnalIhu.Rhythm
         public void Stop()
         {
             _running = false;
+            _isPaused = false;
             _lastBeatIndex = -1;
 
             if (musicSource != null)
                 musicSource.Stop();
+        }
+
+        // 튜토리얼 매니저를 위한 일시정지(Pause) 함수
+        public void PauseMusic()
+        {
+            if (!_running || _isPaused) return;
+
+            _isPaused = true;
+            _running = false;
+            
+            // 일시정지를 누른 정확한 시간을 기록합니다.
+            _pauseStartTime = useDspTime ? AudioSettings.dspTime : Time.timeAsDouble;
+
+            if (musicSource != null)
+                musicSource.Pause();
+        }
+
+        // 튜토리얼 매니저를 위한 재생 재개(Resume) 함수
+        public void ResumeMusic()
+        {
+            if (!_isPaused) return;
+
+            _isPaused = false;
+            _running = true;
+
+            double now = useDspTime ? AudioSettings.dspTime : Time.timeAsDouble;
+            double pausedDuration = now - _pauseStartTime; // 얼마나 오래 멈춰있었는지 계산
+            
+            _startTime += pausedDuration; 
+
+            if (musicSource != null)
+                musicSource.UnPause();
         }
 
         private void Update()
@@ -119,34 +166,7 @@ namespace GnalIhu.Rhythm
                 OnBeat?.Invoke(b);
             }
         }
-        private double _pausedTime;
 
-        public void PauseMusic()
-        {
-            if (!_running) return;
-            
-            _running = false;
-
-            if (musicSource != null)
-                musicSource.Pause();
-
-            _pausedTime = useDspTime ? AudioSettings.dspTime : Time.timeAsDouble;
-        }
-
-        public void ResumeMusic()
-        {
-            if (_running) return;
-            
-            _running = true;
-
-            double now = useDspTime ? AudioSettings.dspTime : Time.timeAsDouble;
-            _startTime += (now - _pausedTime);
-
-            if (musicSource != null)
-                musicSource.Play();
-        }
-
-        
 #if UNITY_EDITOR
         private void OnValidate()
         {

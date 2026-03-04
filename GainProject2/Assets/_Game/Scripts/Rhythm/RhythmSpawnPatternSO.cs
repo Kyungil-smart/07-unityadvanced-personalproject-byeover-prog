@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace GnalIhu.Rhythm
 {
-    [CreateAssetMenu(menuName = "그날이후/리듬/스폰 패턴", fileName = "SO_RhythmSpawnPattern")]
+    [CreateAssetMenu(menuName = "리듬 도사/리듬/스폰 패턴", fileName = "SO_RhythmSpawnPattern")]
     public class RhythmSpawnPatternSO : ScriptableObject
     {
         [Header("패턴")]

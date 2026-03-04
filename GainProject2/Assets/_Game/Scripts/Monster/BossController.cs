@@ -17,10 +17,12 @@ public sealed class BossController : MonoBehaviour
 
     private int currentHp;
 
+    public int CurrentHp => currentHp;
+    public int RealHp => realHp;
+
     private void Awake()
     {
-        // 경고 해결: realHp 변수 사용
-        currentHp = realHp;
+        currentHp = Mathf.Max(1, realHp);
     }
 
     public void SetSurvivalFill01(float value01, bool clampToMin)
@@ -32,14 +34,12 @@ public sealed class BossController : MonoBehaviour
 
     public void LightningHit()
     {
-        if (animator != null && !string.IsNullOrEmpty(hitTrigger))
-            animator.SetTrigger(hitTrigger);
+        AnimatorParamUtil.TrySetTrigger(animator, hitTrigger);
     }
 
     public void FinishKill()
     {
         if (fakeHpFill != null) fakeHpFill.fillAmount = 0f;
-        if (animator != null && !string.IsNullOrEmpty(dieTrigger))
-            animator.SetTrigger(dieTrigger);
+        AnimatorParamUtil.TrySetTrigger(animator, dieTrigger);
     }
 }

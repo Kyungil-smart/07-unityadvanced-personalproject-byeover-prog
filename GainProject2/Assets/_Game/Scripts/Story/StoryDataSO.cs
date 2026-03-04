@@ -22,7 +22,7 @@ public enum StoryExitAction
     LoadScene
 }
 
-[CreateAssetMenu(menuName = "리듬게임/스토리 데이터")]
+[CreateAssetMenu(menuName = "리듬 도사/스토리 데이터")]
 public sealed class StoryDataSO : ScriptableObject
 {
     [Header("스토리")]
