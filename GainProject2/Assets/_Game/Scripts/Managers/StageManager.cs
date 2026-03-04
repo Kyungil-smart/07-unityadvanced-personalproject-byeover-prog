@@ -29,6 +29,10 @@ public sealed class StageManager : MonoBehaviour
     [SerializeField] private Transform clearLine;
     [SerializeField] private CanvasGroup clearUiGroup;
 
+    [Header("보스")]
+    [SerializeField, Tooltip("노드 성공 1회당 보스 데미지")] private int damagePerNodeSuccess = 5000;
+    [SerializeField, Tooltip("클리어 연출 중 번개 타격 간격(초)")] private float finisherInterval = 0.05f;
+
     private GameManager gameManager;
     private StageData currentStage;
     private BossController boss;
@@ -117,20 +121,10 @@ public sealed class StageManager : MonoBehaviour
         boss = go.GetComponent<BossController>();
     }
 
-    private void Update()
-    {
-        if (!stageRunning || clearing) return;
-        if (boss != null && conductor != null && conductor.IsRunning)
-        {
-            float len = currentStage.ForcedSongLength > 0 ? currentStage.ForcedSongLength : (currentStage.MusicClip ? currentStage.MusicClip.length : 100f);
-            float t = Mathf.Clamp01((float)conductor.SongTime / len);
-            boss.SetSurvivalFill01(1f - t, true);
-        }
-    }
-
     private void OnNodeSuccess()
     {
-        if (stageRunning && !clearing && boss != null) boss.LightningHit();
+        if (!stageRunning || clearing || boss == null) return;
+        boss.ApplyDamage(damagePerNodeSuccess);
     }
 
     private void OnSongEnded()
@@ -147,13 +141,12 @@ public sealed class StageManager : MonoBehaviour
         if (noteSpawner != null) noteSpawner.StopSpawning();
 
         gameManager.Events.RaiseGameStateChanged(GameState.StageClearing);
-        var hitCount = gameManager.Settings != null ? gameManager.Settings.FinisherHitCount : 24;
+        int hitCount = gameManager.Settings != null ? gameManager.Settings.FinisherHitCount : 24;
 
         for (int i = 0; i < hitCount; i++)
         {
-            gameManager.Events.RaiseNodeSuccess();
             if (boss != null) boss.LightningHit();
-            yield return new WaitForSeconds(0.05f);
+            yield return new WaitForSeconds(finisherInterval);
         }
 
         if (boss != null) boss.FinishKill();

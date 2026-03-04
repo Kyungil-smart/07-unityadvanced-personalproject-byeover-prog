@@ -1,5 +1,5 @@
 using UnityEngine;
-using UnityEngine.UI;
+using _Game.Scripts.UI;
 
 public sealed class BossController : MonoBehaviour
 {
@@ -12,7 +12,7 @@ public sealed class BossController : MonoBehaviour
     [SerializeField, Tooltip("사망 트리거")] private string dieTrigger = "Die";
 
     [Header("UI 연동")]
-    [SerializeField, Tooltip("체력바 이미지")] private Image fakeHpFill;
+    [SerializeField, Tooltip("보스 체력바 UI")] private BossHpBarUI hpBarUI;
     [SerializeField, Tooltip("최소 잔여 체력 비율")] private float minFillBeforeFinish = 0.02f;
 
     private int currentHp;
@@ -23,13 +23,41 @@ public sealed class BossController : MonoBehaviour
     private void Awake()
     {
         currentHp = Mathf.Max(1, realHp);
+
+        if (hpBarUI == null)
+        {
+            hpBarUI = FindObjectOfType<BossHpBarUI>(true);
+        }
+
+        SyncUI(true);
     }
 
-    public void SetSurvivalFill01(float value01, bool clampToMin)
+    public void ApplyDamage(int damage)
     {
-        float v = Mathf.Clamp01(value01);
+        if (damage <= 0) return;
+
+        currentHp = Mathf.Max(0, currentHp - damage);
+
+        LightningHit();
+
+        if (currentHp <= 0)
+        {
+            FinishKill();
+            return;
+        }
+
+        SyncUI(true);
+    }
+
+    private void SyncUI(bool clampToMin)
+    {
+        if (hpBarUI == null) return;
+
+        float v = (float)currentHp / Mathf.Max(1, realHp);
+        v = Mathf.Clamp01(v);
         if (clampToMin) v = Mathf.Max(v, minFillBeforeFinish);
-        if (fakeHpFill != null) fakeHpFill.fillAmount = v;
+
+        hpBarUI.SetNormalized(v);
     }
 
     public void LightningHit()
@@ -39,7 +67,7 @@ public sealed class BossController : MonoBehaviour
 
     public void FinishKill()
     {
-        if (fakeHpFill != null) fakeHpFill.fillAmount = 0f;
+        if (hpBarUI != null) hpBarUI.SetNormalized(0f);
         AnimatorParamUtil.TrySetTrigger(animator, dieTrigger);
     }
 }
