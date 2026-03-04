@@ -13,9 +13,7 @@ GameObject:
   - component: {fileID: 599836919804294888}
   - component: {fileID: 1455699816450790008}
   - component: {fileID: -6012463344803456138}
-  - component: {fileID: 2878974724734600508}
   - component: {fileID: 3725649451769743317}
-  - component: {fileID: 7849770177461486224}
   - component: {fileID: 4149986448239252400}
   m_Layer: 0
   m_Name: Snake
@@ -184,20 +182,6 @@ Rigidbody2D:
   m_SleepingMode: 1
   m_CollisionDetection: 0
   m_Constraints: 0
---- !u!114 &2878974724734600508
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3738170583685712614}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: ad032deb2020489428affe9dbf544168, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  stepDirection: {x: -1, y: 0, z: 0}
-  useLocalSpace: 0
 --- !u!114 &3725649451769743317
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -214,24 +198,9 @@ MonoBehaviour:
   animator: {fileID: 599836919804294888}
   hitTrigger: Hit
   missTrigger: Miss
-  stepMover: {fileID: 2878974724734600508}
+  stepMover: {fileID: 0}
   despawnX: -30
   hitReturnDelay: 0.05
---- !u!114 &7849770177461486224
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3738170583685712614}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 3d093b581d407d245a0f41f5a11df610, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  stepDistance: 1.2
-  direction: {x: -1, y: 0, z: 0}
-  moveFraction: 0.8
 --- !u!114 &4149986448239252400
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -244,3 +213,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2e634cbc013e83b4cb446922be6e03c0, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  moveDirection: {x: -1, y: 0, z: 0}
+  forwardDistance: 2
+  backwardDistance: 1
+  smoothTime: 0.15

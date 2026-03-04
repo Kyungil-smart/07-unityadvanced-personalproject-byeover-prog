@@ -13,9 +13,8 @@ GameObject:
   - component: {fileID: 7161984210202591888}
   - component: {fileID: 4275401926729305461}
   - component: {fileID: -3471301770559806535}
-  - component: {fileID: -7564431957004425762}
-  - component: {fileID: 8726008402805181675}
   - component: {fileID: 4929302173780992041}
+  - component: {fileID: 6266973196764751989}
   m_Layer: 0
   m_Name: Boar
   m_TagString: Untagged
@@ -183,35 +182,6 @@ Rigidbody2D:
   m_SleepingMode: 1
   m_CollisionDetection: 0
   m_Constraints: 0
---- !u!114 &-7564431957004425762
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 5231908045794633167}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: ad032deb2020489428affe9dbf544168, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  stepDirection: {x: -1, y: 0, z: 0}
-  useLocalSpace: 0
---- !u!114 &8726008402805181675
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 5231908045794633167}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 3d093b581d407d245a0f41f5a11df610, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  stepDistance: 1.2
-  direction: {x: -1, y: 0, z: 0}
-  moveFraction: 0.8
 --- !u!114 &4929302173780992041
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -228,6 +198,21 @@ MonoBehaviour:
   animator: {fileID: 7161984210202591888}
   hitTrigger: Hit
   missTrigger: Miss
-  stepMover: {fileID: -7564431957004425762}
+  stepMover: {fileID: 0}
   despawnX: -30
   hitReturnDelay: 0.05
+--- !u!114 &6266973196764751989
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5231908045794633167}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6cf6d8eefd785b946aaba4011eafd988, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  moveDirection: {x: -1, y: 0, z: 0}
+  stepDistance: 2
+  smoothTime: 0.05

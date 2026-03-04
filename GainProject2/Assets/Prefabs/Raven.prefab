@@ -11,12 +11,10 @@ GameObject:
   - component: {fileID: 4884481916220437282}
   - component: {fileID: 305209521232085233}
   - component: {fileID: 9147980615461403044}
-  - component: {fileID: -1357527665973954216}
   - component: {fileID: 7260550090257244807}
   - component: {fileID: -5064526819858644656}
   - component: {fileID: 1210204304238573744}
-  - component: {fileID: 2969218428293603293}
-  - component: {fileID: -6890679313355910640}
+  - component: {fileID: 6624505979796568766}
   m_Layer: 0
   m_Name: Raven
   m_TagString: Untagged
@@ -112,28 +110,6 @@ Animator:
   m_AllowConstantClipSamplingOptimization: 1
   m_KeepAnimatorStateOnDisable: 0
   m_WriteDefaultValuesOnDisable: 0
---- !u!114 &-1357527665973954216
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 292485049382710945}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 157273265776f3544b8becbe8a6c0376, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  beatsToTravel: 4
-  hopHeight: 0.35
-  squashY: 0.75
-  stretchY: 1.2
-  squashRecoverSpeed: 12
-  beatsToPlayerAfterMiss: 2
-  missDamage: 1
-  damageTrigger: {fileID: 0}
-  playerTag: Player
-  despawnIfLateBeats: 0
 --- !u!61 &7260550090257244807
 BoxCollider2D:
   m_ObjectHideFlags: 0
@@ -222,10 +198,10 @@ MonoBehaviour:
   animator: {fileID: 9147980615461403044}
   hitTrigger: Hit
   missTrigger: Miss
-  stepMover: {fileID: -6890679313355910640}
+  stepMover: {fileID: 0}
   despawnX: -30
   hitReturnDelay: 0.05
---- !u!114 &2969218428293603293
+--- !u!114 &6624505979796568766
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -234,23 +210,10 @@ MonoBehaviour:
   m_GameObject: {fileID: 292485049382710945}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 3d093b581d407d245a0f41f5a11df610, type: 3}
+  m_Script: {fileID: 11500000, guid: c5b22b99b86324340bfc971a3485ff0c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  stepDistance: 1.2
-  direction: {x: -1, y: 0, z: 0}
-  moveFraction: 0.8
---- !u!114 &-6890679313355910640
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 292485049382710945}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: ad032deb2020489428affe9dbf544168, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  stepDirection: {x: -1, y: 0, z: 0}
-  useLocalSpace: 0
+  moveDirection: {x: -1, y: 0, z: 0}
+  stepDistance: 1
+  waveAmplitude: 1.5
+  waveFrequency: 2

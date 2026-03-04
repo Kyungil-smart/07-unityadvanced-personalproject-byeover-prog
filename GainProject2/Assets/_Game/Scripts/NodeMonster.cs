@@ -9,14 +9,9 @@ public sealed class NodeMonster : MonoBehaviour
     [SerializeField] private string hitTrigger = "Hit";
     [SerializeField] private string missTrigger = "Miss";
 
-    [Header("이동")]
-    [SerializeField] private BeatStepMover stepMover;
-
-    [Header("수명")]
-    [SerializeField, Tooltip("이 X 보다 더 왼쪽이면 자동 회수")] private float despawnX = -30f;
-
-    [Header("히트 회수")]
-    [SerializeField, Tooltip("히트 후 회수 지연(초)")] private float hitReturnDelay = 0.05f;
+    [Header("수명 및 판정")]
+    [SerializeField, Tooltip("이 X 보다 더 왼쪽이면 자동 파괴")] private float despawnX = -30f;
+    [SerializeField, Tooltip("히트 후 파괴 지연(초)")] private float hitReturnDelay = 0.05f;
 
     private GameManager gameManager;
     private Action<NodeMonster> returnToPool;
@@ -25,6 +20,7 @@ public sealed class NodeMonster : MonoBehaviour
     private bool judgedHit;
     private bool judgedMiss;
     private float returnTimer;
+    private MonoBehaviour[] cachedMovers;
 
     public bool IsJudged => judgedHit || judgedMiss;
 
@@ -34,32 +30,11 @@ public sealed class NodeMonster : MonoBehaviour
         returnToPool = onReturn;
         missDamage = manager != null && manager.Settings != null ? manager.Settings.MissDamage : 1;
 
-        if (stepMover != null && manager != null)
-            stepMover.Initialize(manager.Events, manager.Settings);
-
         judgedHit = false;
         judgedMiss = false;
         returnTimer = 0f;
-    }
 
-    public void Spawn(Vector3 position, Sprite nodeSprite)
-    {
-        transform.position = position;
-
-        if (spriteRenderer != null && nodeSprite != null)
-            spriteRenderer.sprite = nodeSprite;
-
-        judgedHit = false;
-        judgedMiss = false;
-        returnTimer = 0f;
-        
-        gameObject.SetActive(true);
-        
-        if (animator != null && animator.runtimeAnimatorController != null)
-        {
-            animator.Rebind();
-            animator.Update(0f);
-        }
+        cachedMovers = GetComponents<MonoBehaviour>();
     }
 
     public void Hit()
@@ -68,6 +43,7 @@ public sealed class NodeMonster : MonoBehaviour
 
         judgedHit = true;
         returnTimer = hitReturnDelay;
+        StopMovement();
 
         if (animator != null && HasParameter(hitTrigger))
             animator.SetTrigger(hitTrigger);
@@ -81,12 +57,23 @@ public sealed class NodeMonster : MonoBehaviour
         if (IsJudged) return;
 
         judgedMiss = true;
+        StopMovement();
 
         if (animator != null && HasParameter(missTrigger))
             animator.SetTrigger(missTrigger);
 
         if (gameManager != null)
             gameManager.Events.RaiseNodeMiss();
+    }
+
+    private void StopMovement()
+    {
+        if (cachedMovers == null) return;
+        
+        foreach (var mover in cachedMovers)
+        {
+            if (mover != this) mover.enabled = false;
+        }
     }
 
     private void Update()
@@ -98,19 +85,21 @@ public sealed class NodeMonster : MonoBehaviour
             return;
         }
 
-        if (!judgedMiss) return;
-
+        // 판정선을 너무 많이 지나쳤을 때 자동 파괴
         if (transform.position.x <= despawnX)
+        {
             Return();
+        }
     }
 
     private void OnTriggerEnter2D(Collider2D other)
     {
-        if (!judgedMiss) return;
+        if (IsJudged) return;
 
         if (other.TryGetComponent(out PlayerHealth playerHealth))
         {
             playerHealth.ApplyDamage(missDamage);
+            Miss();
             Return();
         }
     }
@@ -119,7 +108,15 @@ public sealed class NodeMonster : MonoBehaviour
     {
         if (!gameObject.activeSelf) return;
         gameObject.SetActive(false);
-        returnToPool?.Invoke(this);
+        
+        if (returnToPool != null)
+        {
+            returnToPool.Invoke(this);
+        }
+        else
+        {
+            Destroy(gameObject);
+        }
     }
     
     private bool HasParameter(string paramName)
