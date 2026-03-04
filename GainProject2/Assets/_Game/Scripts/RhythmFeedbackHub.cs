@@ -37,7 +37,6 @@ namespace _Game.Scripts.Rhythm
         {
             if (gameManager != null && gameManager.Events != null)
             {
-                // On을 빼고 실제 선언된 이벤트 이름과 정확히 맞췄습니다.
                 gameManager.Events.NodeSuccess += HandleHit;
                 gameManager.Events.NodeMiss += HandleMiss;
             }
@@ -54,17 +53,13 @@ namespace _Game.Scripts.Rhythm
 
         private void HandleHit()
         {
-            if (reactOnHit && bossHitReact != null)
-                bossHitReact.Hit();
-
-            if (spawnBarOnHit && hitBarSpawner != null)
-                hitBarSpawner.SpawnFlash();
+            if (reactOnHit && bossHitReact != null) bossHitReact.Hit();
+            if (spawnBarOnHit && hitBarSpawner != null) hitBarSpawner.SpawnFlash();
         }
 
         private void HandleMiss()
         {
-            if (spawnBarOnMiss && hitBarSpawner != null)
-                hitBarSpawner.SpawnFlash();
+            if (spawnBarOnMiss && hitBarSpawner != null) hitBarSpawner.SpawnFlash();
         }
     }
 }

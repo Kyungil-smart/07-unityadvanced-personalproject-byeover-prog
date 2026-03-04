@@ -24,7 +24,6 @@ public class GameBootstrap : MonoBehaviour
 
     private void InitializeGame()
     {
-        // 세션 매니저 초기화
         if (sessionManager != null && gameManager != null)
         {
             sessionManager.Initialize(gameManager);
@@ -32,7 +31,7 @@ public class GameBootstrap : MonoBehaviour
         
         if (stageManager != null)
         {
-            stageManager.LoadStage(0); 
+            stageManager.StartStage(0); 
         }
         
         if (rhythmConductor != null && !rhythmConductor.IsRunning)
