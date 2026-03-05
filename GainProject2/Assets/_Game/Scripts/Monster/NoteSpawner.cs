@@ -2,6 +2,9 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using GnalIhu.Rhythm;
+using _Game.Scripts.Rhythm;
+
+using PatternSO = _Game.Scripts.Rhythm.RhythmSpawnPatternSO;
 
 public sealed class NoteSpawner : MonoBehaviour
 {
@@ -9,7 +12,7 @@ public sealed class NoteSpawner : MonoBehaviour
     [SerializeField] private RhythmConductor conductor;
 
     private GameManager gameManager;
-    private RhythmSpawnPatternSO patternSO;
+    private PatternSO patternSO;
     private Transform[] laneSpawnPoints;
     private Transform activeRoot;
     private Transform poolRoot;
@@ -19,8 +22,8 @@ public sealed class NoteSpawner : MonoBehaviour
 
     public void Configure(StageData data, Transform[] lanes, Transform activeRoot, Transform poolRoot)
     {
-        patternSO = data.SpawnPatternSO; 
-        this.laneSpawnPoints = lanes;
+        patternSO = data.SpawnPatternSO;
+        laneSpawnPoints = lanes;
         this.activeRoot = activeRoot;
         this.poolRoot = poolRoot;
     }
@@ -42,8 +45,7 @@ public sealed class NoteSpawner : MonoBehaviour
         for (int i = activeRoot.childCount - 1; i >= 0; i--)
         {
             var child = activeRoot.GetChild(i);
-            child.gameObject.SetActive(false);
-            if (poolRoot != null) child.SetParent(poolRoot);
+            ReturnToPool(child.gameObject);
         }
     }
 
@@ -51,9 +53,10 @@ public sealed class NoteSpawner : MonoBehaviour
     {
         while (conductor.SongTime < 0) yield return null;
 
-        if (patternSO.cues.Count == 0) yield break;
-        
-        var sortedCues = new List<RhythmSpawnPatternSO.SpawnCue>(patternSO.cues);
+        var cues = GetCues();
+        if (cues == null || cues.Count == 0) yield break;
+
+        var sortedCues = new List<PatternSO.SpawnCue>(cues);
         sortedCues.Sort((a, b) => (a.beat + a.subBeat).CompareTo(b.beat + b.subBeat));
 
         int eventIndex = 0;
@@ -69,7 +72,7 @@ public sealed class NoteSpawner : MonoBehaviour
 
             var cue = sortedCues[eventIndex];
             double baseTargetBeat = cycleOffset + cue.beat + cue.subBeat;
-            
+
             while (conductor.CurrentBeat < baseTargetBeat) yield return null;
 
             for (int i = 0; i < cue.count; i++)
@@ -81,31 +84,95 @@ public sealed class NoteSpawner : MonoBehaviour
                 }
                 SpawnSpecificNote(cue.prefab, cue.laneId);
             }
+
             eventIndex++;
         }
+    }
+
+    private IList<PatternSO.SpawnCue> GetCues()
+    {
+        return patternSO != null ? patternSO.cues : null;
     }
 
     private void SpawnSpecificNote(GameObject prefab, string laneIdStr)
     {
         if (prefab == null || laneSpawnPoints == null || laneSpawnPoints.Length == 0) return;
+        if (activeRoot == null) return;
 
-        // SO에 적힌 laneId를 읽어서 해당 레인에서 스폰합니다.
-        int laneIdx = 0;
-        if (!string.IsNullOrEmpty(laneIdStr) && int.TryParse(laneIdStr, out int parsed))
-        {
-            laneIdx = Mathf.Clamp(parsed, 0, laneSpawnPoints.Length - 1);
-        }
+        int laneIdx = ResolveLaneIndex(laneIdStr, laneSpawnPoints.Length);
         Transform sp = laneSpawnPoints[laneIdx];
 
-        GameObject go = Instantiate(prefab, sp.position, sp.rotation, activeRoot);
+        GameObject go = GetFromPool(prefab);
+        go.transform.SetParent(activeRoot, true);
+        go.transform.SetPositionAndRotation(sp.position, sp.rotation);
+        go.SetActive(true);
+
         if (go.TryGetComponent(out NodeMonster node))
         {
-            node.Initialize(gameManager, (n) =>
-            {
-                n.gameObject.SetActive(false);
-                if (poolRoot != null) n.transform.SetParent(poolRoot);
-            });
+            node.Initialize(gameManager, (n) => ReturnToPool(n.gameObject));
             node.Spawn(sp.position, null);
         }
+    }
+
+    private int ResolveLaneIndex(string laneIdStr, int laneCount)
+    {
+        if (laneCount <= 0) return 0;
+
+        int idx = 0;
+
+        if (!string.IsNullOrEmpty(laneIdStr))
+        {
+            int parsed = -1;
+
+            if (int.TryParse(laneIdStr, out int direct))
+            {
+                parsed = direct;
+            }
+            else
+            {
+                int value = 0;
+                bool hasDigit = false;
+
+                for (int i = 0; i < laneIdStr.Length; i++)
+                {
+                    char c = laneIdStr[i];
+                    if (c < '0' || c > '9') continue;
+                    hasDigit = true;
+                    value = (value * 10) + (c - '0');
+                }
+
+                if (hasDigit) parsed = value;
+            }
+
+            if (parsed >= 0) idx = parsed;
+        }
+
+        return Mathf.Clamp(idx, 0, laneCount - 1);
+    }
+
+    private GameObject GetFromPool(GameObject prefab)
+    {
+        if (poolRoot != null)
+        {
+            for (int i = poolRoot.childCount - 1; i >= 0; i--)
+            {
+                var child = poolRoot.GetChild(i);
+                if (child != null && child.name == prefab.name)
+                    return child.gameObject;
+            }
+        }
+
+        var go = Instantiate(prefab);
+        go.name = prefab.name;
+        go.SetActive(false);
+        return go;
+    }
+
+    private void ReturnToPool(GameObject go)
+    {
+        if (go == null) return;
+        go.SetActive(false);
+        if (poolRoot != null) go.transform.SetParent(poolRoot, false);
+        else go.transform.SetParent(null, false);
     }
 }

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using _Game.Scripts.Rhythm;
 
 namespace GnalIhu.Rhythm
 {
@@ -21,13 +22,11 @@ namespace GnalIhu.Rhythm
         [Header("스폰 옵션")]
         [SerializeField] private Transform spawnedParent;
         [Tooltip("디버그 로그 출력")]
-        [SerializeField]private bool logSpawn = false;
-        
-        
+        [SerializeField] private bool logSpawn = false;
 
         private readonly Dictionary<string, RhythmLane> laneMap = new Dictionary<string, RhythmLane>();
         private readonly List<CachedSpawnEvent> cachedEvents = new List<CachedSpawnEvent>();
-        private readonly List<GameObject> activeMonsters = new List<GameObject>(); // 몬스터 청소용
+        private readonly List<GameObject> activeMonsters = new List<GameObject>();
 
         private int eventIndex;
         private double cycleOffsetBeats;
@@ -39,15 +38,17 @@ namespace GnalIhu.Rhythm
             public string laneId;
             public GameObject prefab;
         }
-        
+
         public void AssignConductor(RhythmConductor c)
         {
             conductor = c;
         }
 
-        private void Awake() { RebuildLaneMap(); }
+        private void Awake()
+        {
+            RebuildLaneMap();
+        }
 
-        // 스테이지가 바뀔 때마다 새로운 패턴을 세팅하는 함수
         public void SetPattern(RhythmSpawnPatternSO newPattern)
         {
             pattern = newPattern;
@@ -58,7 +59,9 @@ namespace GnalIhu.Rhythm
         public void ClearSpawnedMonsters()
         {
             foreach (var mon in activeMonsters)
+            {
                 if (mon != null) Destroy(mon);
+            }
             activeMonsters.Clear();
         }
 
@@ -67,8 +70,10 @@ namespace GnalIhu.Rhythm
             laneMap.Clear();
             foreach (var b in lanes)
             {
-                if (b != null && !string.IsNullOrWhiteSpace(b.id) && b.lane != null)
-                    laneMap[b.id] = b.lane;
+                if (b == null) continue;
+                if (string.IsNullOrEmpty(b.id)) continue;
+                if (b.lane == null) continue;
+                laneMap[b.id] = b.lane;
             }
         }
 
@@ -76,67 +81,84 @@ namespace GnalIhu.Rhythm
         {
             cachedEvents.Clear();
             cacheBuilt = false;
-            if (pattern == null) return;
+            eventIndex = 0;
+            cycleOffsetBeats = 0;
 
-            foreach (var cue in pattern.cues)
+            if (pattern == null || pattern.cues == null || pattern.cues.Length == 0) return;
+
+            for (int i = 0; i < pattern.cues.Length; i++)
             {
-                if (cue.prefab == null || cue.count < 1) continue;
-                double baseBeat = cue.beat + cue.subBeat;
-                double spacing = Math.Max(0.0, cue.withinCueSpacingBeats);
+                var c = pattern.cues[i];
+                if (c == null) continue;
+                if (c.prefab == null) continue;
 
-                for (int i = 0; i < cue.count; i++)
+                double baseBeat = c.beat + c.subBeat;
+
+                int count = Mathf.Max(1, c.count);
+                float spacing = Mathf.Max(0f, c.withinCueSpacingBeats);
+
+                for (int k = 0; k < count; k++)
                 {
                     cachedEvents.Add(new CachedSpawnEvent
                     {
-                        spawnBeat = baseBeat + spacing * i,
-                        laneId = cue.laneId,
-                        prefab = cue.prefab
+                        spawnBeat = baseBeat + (spacing * k),
+                        laneId = c.laneId,
+                        prefab = c.prefab
                     });
                 }
             }
 
             cachedEvents.Sort((a, b) => a.spawnBeat.CompareTo(b.spawnBeat));
-            eventIndex = 0;
-            cycleOffsetBeats = 0;
             cacheBuilt = true;
         }
 
         private void Update()
         {
-            if (conductor == null || pattern == null || !conductor.IsRunning) return;
+            if (conductor == null) return;
+            if (pattern == null) return;
+
+            if (!cacheBuilt) RebuildCache();
             if (!cacheBuilt || cachedEvents.Count == 0) return;
-            if (conductor.SongTime < 0) return;
 
-            double currentBeat = conductor.CurrentBeat;
-
-            while (true)
+            while (eventIndex < cachedEvents.Count)
             {
+                double targetBeat = cycleOffsetBeats + cachedEvents[eventIndex].spawnBeat;
+                if (conductor.CurrentBeat < targetBeat) break;
+
+                var ev = cachedEvents[eventIndex];
+                SpawnOne(ev.prefab, ev.laneId);
+
+                eventIndex++;
+
                 if (eventIndex >= cachedEvents.Count)
                 {
-                    if (pattern.loop) { eventIndex = 0; cycleOffsetBeats += pattern.lengthBeats; }
-                    else break;
+                    if (pattern.loop)
+                    {
+                        eventIndex = 0;
+                        cycleOffsetBeats += pattern.lengthBeats;
+                    }
                 }
-
-                double targetBeat = cycleOffsetBeats + cachedEvents[eventIndex].spawnBeat;
-                if (currentBeat < targetBeat) break;
-
-                SpawnOne(cachedEvents[eventIndex], targetBeat);
-                eventIndex++;
             }
         }
 
-        private void SpawnOne(CachedSpawnEvent ev, double scheduledBeat)
+        private void SpawnOne(GameObject prefab, string laneId)
         {
-            if (!laneMap.TryGetValue(ev.laneId, out RhythmLane lane) || lane == null) return;
+            if (prefab == null) return;
 
-            GameObject go = spawnedParent == null ? Instantiate(ev.prefab) : Instantiate(ev.prefab, spawnedParent);
-            go.transform.position = lane.StartPosition;
+            if (!laneMap.TryGetValue(laneId, out var lane) || lane == null)
+            {
+                if (logSpawn) Debug.LogWarning($"[RhythmSpawner] laneId 매핑 실패: {laneId}", this);
+                return;
+            }
 
-            var mover = go.GetComponent<RhythmLaneMover>();
-            if (mover == null) mover = go.AddComponent<RhythmLaneMover>();
+            Vector3 pos = lane.transform.position;
+            Quaternion rot = lane.transform.rotation;
 
-            mover.Initialize(conductor, lane, scheduledBeat);
+            Transform parent = spawnedParent != null ? spawnedParent : null;
+            var go = Instantiate(prefab, pos, rot, parent);
             activeMonsters.Add(go);
+
+            if (logSpawn) Debug.Log($"[RhythmSpawner] Spawn: beat={conductor.CurrentBeat:F2}, lane={laneId}, prefab={prefab.name}", this);
         }
     }
 }

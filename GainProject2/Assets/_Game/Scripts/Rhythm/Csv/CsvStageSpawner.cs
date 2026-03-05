@@ -43,7 +43,7 @@ public sealed class CsvStageSpawner : MonoBehaviour
     private readonly List<SpawnRow>[] laneRows = new List<SpawnRow>[5];
     private readonly int[] laneCursor = { 0, 0, 0, 0, 0 };
 
-    private readonly int[] laneCurrentId = { 0, 0, 0, 0, 0 };
+    private readonly int[] laneCurrentNodeId = { 0, 0, 0, 0, 0 };
     private readonly double[] laneNextAllowedBeat = { 0, 0, 0, 0, 0 };
 
     private int cursor;
@@ -71,7 +71,7 @@ public sealed class CsvStageSpawner : MonoBehaviour
         for (int lane = 1; lane <= 4; lane++)
         {
             laneCursor[lane] = 0;
-            laneCurrentId[lane] = 0;
+            laneCurrentNodeId[lane] = 0;
             laneNextAllowedBeat[lane] = 0.0;
         }
 
@@ -116,7 +116,7 @@ public sealed class CsvStageSpawner : MonoBehaviour
 
         for (int lane = 1; lane <= 4; lane++)
         {
-            if (laneCurrentId[lane] != 0) continue;
+            if (laneCurrentNodeId[lane] != 0) continue;
             if (nowBeat + 1e-6 < laneNextAllowedBeat[lane]) continue;
             if (laneCursor[lane] >= laneRows[lane].Count) continue;
 
@@ -134,10 +134,10 @@ public sealed class CsvStageSpawner : MonoBehaviour
         if (lane < 1 || lane > 4) return;
         if (node == null) return;
 
-        int id = node.GetInstanceID();
-        if (laneCurrentId[lane] != id) return;
+        int nodeId = node.GetInstanceID();
+        if (laneCurrentNodeId[lane] != nodeId) return;
 
-        laneCurrentId[lane] = 0;
+        laneCurrentNodeId[lane] = 0;
 
         double nowBeat = (conductor != null) ? (conductor.SongTime / beatDur) : 0.0;
         double nextBeat = Math.Floor(nowBeat + 1e-6) + 1.0;
@@ -185,14 +185,7 @@ public sealed class CsvStageSpawner : MonoBehaviour
             double spawnBeat = impactBeat - travelBeats;
             if (spawnBeat < 0) spawnBeat = 0;
 
-            var row = new SpawnRow
-            {
-                spawnBeat = spawnBeat,
-                lane = lane,
-                monsterId = id
-            };
-
-            rows.Add(row);
+            rows.Add(new SpawnRow { spawnBeat = spawnBeat, lane = lane, monsterId = id });
         }
 
         rows.Sort((a, b) =>
@@ -285,9 +278,15 @@ public sealed class CsvStageSpawner : MonoBehaviour
 
         var go = Instantiate(prefab, sp.position, sp.rotation);
 
+        if (!go.TryGetComponent(out NodeMonster node))
+        {
+            if (verboseLog) Debug.LogWarning($"[CsvStageSpawner] NodeMonster 컴포넌트 없음: {go.name}", this);
+            return;
+        }
+
         if (applyGate)
         {
-            laneCurrentId[lane] = go.GetInstanceID();
+            laneCurrentNodeId[lane] = node.GetInstanceID();
             laneNextAllowedBeat[lane] = double.PositiveInfinity;
         }
     }

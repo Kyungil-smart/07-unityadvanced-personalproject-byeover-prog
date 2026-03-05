@@ -1,6 +1,6 @@
 using System;
 using UnityEngine;
-using GnalIhu.Rhythm;
+using _Game.Scripts.Rhythm;
 
 [Serializable]
 public struct StageData
@@ -21,7 +21,7 @@ public struct StageData
     [Header("구형 스폰 (사용 안함)")]
     [SerializeField] private int spawnEveryNBeats;
     [SerializeField] private string spawnPattern;
-    
+
     [Header("정밀 패턴 (SO 방식 - 이걸 사용합니다!)")]
     [SerializeField] private RhythmSpawnPatternSO spawnPatternSO;
 
@@ -32,7 +32,7 @@ public struct StageData
 
     [Header("방해요소")]
     [SerializeField] private StageObstacleType obstacleType;
-    
+
     [Header("CSV 패턴")]
     [SerializeField] private CsvSpawnPatternSO csvSpawnPatternSO;
     [SerializeField] private MonsterCatalogSO monsterCatalogSO;
@@ -49,11 +49,12 @@ public struct StageData
     public float ForcedSongLength => forcedSongLength;
     public int SpawnEveryNBeats => spawnEveryNBeats <= 0 ? 1 : spawnEveryNBeats;
     public string SpawnPattern => spawnPattern;
-    
-    public RhythmSpawnPatternSO SpawnPatternSO => spawnPatternSO; 
-    
+
+    public RhythmSpawnPatternSO SpawnPatternSO => spawnPatternSO;
+
     public GameObject[] RandomMonsterPrefabs => randomMonsterPrefabs;
     public GameObject NodeMonsterPrefab => nodeMonsterPrefab;
     public GameObject BossPrefab => bossPrefab;
+
     public StageObstacleType ObstacleType => obstacleType;
 }
