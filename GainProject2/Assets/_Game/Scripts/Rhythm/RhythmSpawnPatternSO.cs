@@ -1,59 +1,88 @@
 using System;
-using System.Collections.Generic;
 using UnityEngine;
 
-namespace GnalIhu.Rhythm
+namespace _Game.Scripts.Rhythm
 {
     [CreateAssetMenu(menuName = "그날이후/리듬/스폰 패턴", fileName = "SO_RhythmSpawnPattern")]
-    public class RhythmSpawnPatternSO : ScriptableObject
+    public sealed class RhythmSpawnPatternSO : ScriptableObject
     {
-        [Header("패턴")]
-        [Min(1)]
-        [Tooltip("패턴 길이(박). loop=true면 이 길이마다 반복됩니다.")]
-        public int lengthBeats = 16;
-
-        [Tooltip("true면 lengthBeats 단위로 반복 스폰합니다. false면 한 번만 실행하고 끝.")]
-        public bool loop = true;
-
-        [Header("스폰 큐")]
-        [Tooltip("스폰 타이밍은 '초'가 아니라 '박' 기준입니다. beat=0은 0박(시작 박)입니다.")]
-        public List<SpawnCue> cues = new List<SpawnCue>();
-
         [Serializable]
-        public struct SpawnCue
+        public sealed class SpawnCue
         {
-            [Min(0)]
-            [Tooltip("몇 번째 박에 스폰할지(0부터).")]
+            [Header("타이밍")]
             public int beat;
-
-            [Range(0f, 0.999f)]
-            [Tooltip("박 내부 오프셋(0=정박, 0.5=반박 등).")]
             public float subBeat;
 
-            [Tooltip("스폰할 레인 ID(Spawner의 Lane Bindings에 있는 ID와 동일해야 함).")]
+            [Header("레인")]
+            [Tooltip("0,1,2 또는 Node_00 같은 문자열도 허용")]
             public string laneId;
 
-            [Tooltip("스폰할 몹 프리팹.")]
+            [Header("스폰")]
             public GameObject prefab;
-
-            [Min(1)]
-            [Tooltip("한 큐에서 스폰할 개수.")]
-            public int count;
-
-            [Min(0f)]
-            [Tooltip("count>1일 때 추가 스폰 간격(박). 1이면 1박마다 1개씩.")]
-            public float withinCueSpacingBeats;
+            [Min(1)] public int count = 1;
+            [Min(0f)] public float withinCueSpacingBeats;
         }
 
-        [ContextMenu("스폰 큐 정렬(beat+subBeat)")]
-        public void SortCues()
+        [Header("패턴")]
+        [Min(1)] public int lengthBeats = 16;
+        public bool loop = false;
+
+        [Header("큐")]
+        public SpawnCue[] cues;
+
+        public int ResolveLaneIndex(string laneIdStr, int laneCount)
         {
-            cues.Sort((a, b) =>
+            if (laneCount <= 0) return 0;
+
+            int idx = 0;
+
+            if (!string.IsNullOrEmpty(laneIdStr))
             {
-                float ta = a.beat + a.subBeat;
-                float tb = b.beat + b.subBeat;
-                return ta.CompareTo(tb);
-            });
+                int parsed = -1;
+
+                if (int.TryParse(laneIdStr, out int direct))
+                {
+                    parsed = direct;
+                }
+                else
+                {
+                    int value = 0;
+                    bool hasDigit = false;
+
+                    for (int i = 0; i < laneIdStr.Length; i++)
+                    {
+                        char c = laneIdStr[i];
+                        if (c < '0' || c > '9') continue;
+                        hasDigit = true;
+                        value = (value * 10) + (c - '0');
+                    }
+
+                    if (hasDigit) parsed = value;
+                }
+
+                if (parsed >= 0) idx = parsed;
+            }
+
+            return Mathf.Clamp(idx, 0, laneCount - 1);
         }
+
+#if UNITY_EDITOR
+        private void OnValidate()
+        {
+            if (lengthBeats < 1) lengthBeats = 1;
+
+            if (cues == null) return;
+
+            for (int i = 0; i < cues.Length; i++)
+            {
+                var cue = cues[i];
+                if (cue == null) continue;
+
+                if (cue.count < 1) cue.count = 1;
+                if (cue.withinCueSpacingBeats < 0f) cue.withinCueSpacingBeats = 0f;
+                if (cue.subBeat < 0f) cue.subBeat = 0f;
+            }
+        }
+#endif
     }
 }

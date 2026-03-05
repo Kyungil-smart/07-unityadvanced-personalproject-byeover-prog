@@ -12,9 +12,6 @@ public sealed class NodeMonster : MonoBehaviour
     [Header("콜라이더")]
     [SerializeField, Tooltip("미스 후 데미지용 트리거 콜라이더")] private BoxCollider2D damageTriggerCollider;
 
-    [Header("이동")]
-    [SerializeField] private BeatStepMover stepMover;
-
     [Header("수명")]
     [SerializeField, Tooltip("이 X 보다 더 왼쪽이면 자동 회수")] private float despawnX = -30f;
 
@@ -28,17 +25,19 @@ public sealed class NodeMonster : MonoBehaviour
     private bool judgedHit;
     private bool judgedMiss;
     private float returnTimer;
+    private MonoBehaviour[] cachedMovers;
 
     public bool IsJudged => judgedHit || judgedMiss;
 
-    public void Initialize(GameManager manager, Action<NodeMonster> onReturn)
+    private void Awake()
     {
-        gameManager = manager;
-        returnToPool = onReturn;
-        missDamage = manager != null && manager.Settings != null ? manager.Settings.MissDamage : 1;
+        cachedMovers = GetComponents<MonoBehaviour>();
+        EnsureInitialized();
+    }
 
-        if (stepMover != null && manager != null)
-            stepMover.Initialize(manager.Events, manager.Settings);
+    private void OnEnable()
+    {
+        EnsureInitialized();
 
         if (damageTriggerCollider != null)
             damageTriggerCollider.enabled = false;
@@ -48,12 +47,12 @@ public sealed class NodeMonster : MonoBehaviour
         returnTimer = 0f;
     }
 
-    public void Spawn(Vector3 position, Sprite nodeSprite)
+    public void Initialize(GameManager manager, Action<NodeMonster> onReturn)
     {
-        transform.position = position;
+        gameManager = manager;
+        returnToPool = onReturn;
 
-        if (spriteRenderer != null)
-            spriteRenderer.sprite = nodeSprite;
+        missDamage = manager != null && manager.Settings != null ? manager.Settings.MissDamage : 1;
 
         if (damageTriggerCollider != null)
             damageTriggerCollider.enabled = false;
@@ -61,6 +60,32 @@ public sealed class NodeMonster : MonoBehaviour
         judgedHit = false;
         judgedMiss = false;
         returnTimer = 0f;
+
+        cachedMovers = cachedMovers != null ? cachedMovers : GetComponents<MonoBehaviour>();
+    }
+
+    public void Spawn(Vector3 position, Sprite sprite)
+    {
+        transform.position = position;
+
+        if (spriteRenderer != null && sprite != null)
+            spriteRenderer.sprite = sprite;
+
+        if (damageTriggerCollider != null)
+            damageTriggerCollider.enabled = false;
+
+        judgedHit = false;
+        judgedMiss = false;
+        returnTimer = 0f;
+
+        if (cachedMovers != null)
+        {
+            foreach (var mover in cachedMovers)
+            {
+                if (mover != this && mover != null)
+                    mover.enabled = true;
+            }
+        }
 
         gameObject.SetActive(true);
     }
@@ -69,28 +94,48 @@ public sealed class NodeMonster : MonoBehaviour
     {
         if (IsJudged) return;
 
+        EnsureInitialized();
+
         judgedHit = true;
         returnTimer = hitReturnDelay;
+        StopMovement();
 
         if (animator != null && !string.IsNullOrEmpty(hitTrigger))
-            animator.SetTrigger(hitTrigger);
+            AnimatorParamUtil.TrySetTrigger(animator, hitTrigger);
 
-        gameManager.Events.RaiseNodeSuccess();
+        if (gameManager != null)
+            gameManager.Events.RaiseNodeSuccess();
     }
 
     public void Miss()
     {
         if (IsJudged) return;
 
+        EnsureInitialized();
+
         judgedMiss = true;
 
         if (damageTriggerCollider != null)
             damageTriggerCollider.enabled = true;
 
-        if (animator != null && !string.IsNullOrEmpty(missTrigger))
-            animator.SetTrigger(missTrigger);
+        AnimatorParamUtil.TrySetTrigger(animator, missTrigger);
+    }
 
-        gameManager.Events.RaiseNodeMiss();
+    private void EnsureInitialized()
+    {
+        if (gameManager == null) gameManager = GameManager.Instance;
+        if (missDamage <= 0) missDamage = gameManager != null && gameManager.Settings != null ? gameManager.Settings.MissDamage : 1;
+    }
+
+    private void StopMovement()
+    {
+        if (cachedMovers == null) return;
+
+        foreach (var mover in cachedMovers)
+        {
+            if (mover != this && mover != null)
+                mover.enabled = false;
+        }
     }
 
     private void Update()
@@ -98,8 +143,7 @@ public sealed class NodeMonster : MonoBehaviour
         if (judgedHit)
         {
             returnTimer -= Time.deltaTime;
-            if (returnTimer <= 0f)
-                Return();
+            if (returnTimer <= 0f) Return();
             return;
         }
 
@@ -129,6 +173,8 @@ public sealed class NodeMonster : MonoBehaviour
             damageTriggerCollider.enabled = false;
 
         gameObject.SetActive(false);
-        returnToPool?.Invoke(this);
+
+        if (returnToPool != null) returnToPool.Invoke(this);
+        else Destroy(gameObject);
     }
 }

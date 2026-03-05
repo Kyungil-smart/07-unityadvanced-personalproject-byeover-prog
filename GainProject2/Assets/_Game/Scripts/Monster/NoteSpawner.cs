@@ -1,137 +1,178 @@
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using GnalIhu.Rhythm;
+using _Game.Scripts.Rhythm;
+
+using PatternSO = _Game.Scripts.Rhythm.RhythmSpawnPatternSO;
 
 public sealed class NoteSpawner : MonoBehaviour
 {
-    [Header("풀")]
-    [SerializeField] private int prewarm = 32;
+    [Header("참조")]
+    [SerializeField] private RhythmConductor conductor;
 
     private GameManager gameManager;
-    private readonly Queue<NodeMonster> pool = new Queue<NodeMonster>(128);
-    private readonly List<NodeMonster> actives = new List<NodeMonster>(128);
-
-    private GameObject nodePrefab;
-    private Sprite nodeSprite;
-    private Transform spawnPoint;
+    private PatternSO patternSO;
+    private Transform[] laneSpawnPoints;
     private Transform activeRoot;
     private Transform poolRoot;
+    private Coroutine spawnCo;
 
-    private int spawnEveryNBeats = 1;
-    private bool running;
+    public void Initialize(GameManager manager) { gameManager = manager; }
 
-    public void Initialize(GameManager manager)
+    public void Configure(StageData data, Transform[] lanes, Transform activeRoot, Transform poolRoot)
     {
-        gameManager = manager;
-    }
-
-    public void Configure(StageData stageData, Transform spawn, Transform activeParent, Transform poolParent)
-    {
-        spawnPoint = spawn;
-        activeRoot = activeParent;
-        poolRoot = poolParent;
-
-        var prefabChanged = nodePrefab != stageData.NodeMonsterPrefab;
-
-        nodePrefab = stageData.NodeMonsterPrefab;
-        nodeSprite = stageData.NodeSprite;
-        spawnEveryNBeats = Mathf.Max(1, stageData.SpawnEveryNBeats);
-
-        if (prefabChanged)
-            RebuildPool();
+        patternSO = data.SpawnPatternSO;
+        laneSpawnPoints = lanes;
+        this.activeRoot = activeRoot;
+        this.poolRoot = poolRoot;
     }
 
     public void StartSpawning()
     {
-        if (gameManager == null || gameManager.Events == null) return;
-
         StopSpawning();
-        running = true;
-        gameManager.Events.Beat += OnBeat;
+        if (conductor != null && patternSO != null) spawnCo = StartCoroutine(SpawnRoutine());
     }
 
     public void StopSpawning()
     {
-        running = false;
-        if (gameManager != null && gameManager.Events != null)
-            gameManager.Events.Beat -= OnBeat;
+        if (spawnCo != null) { StopCoroutine(spawnCo); spawnCo = null; }
     }
 
     public void ClearAll()
     {
-        for (int i = actives.Count - 1; i >= 0; i--)
+        if (activeRoot == null) return;
+        for (int i = activeRoot.childCount - 1; i >= 0; i--)
         {
-            var node = actives[i];
-            if (node == null) continue;
-            Release(node);
-        }
-
-        actives.Clear();
-    }
-
-    private void RebuildPool()
-    {
-        ClearAll();
-        while (pool.Count > 0) pool.Dequeue();
-
-        if (nodePrefab == null) return;
-
-        for (int i = 0; i < prewarm; i++)
-        {
-            var node = CreateNew();
-            Release(node);
+            var child = activeRoot.GetChild(i);
+            ReturnToPool(child.gameObject);
         }
     }
 
-    private NodeMonster CreateNew()
+    private IEnumerator SpawnRoutine()
     {
-        var go = Instantiate(nodePrefab, poolRoot != null ? poolRoot : transform);
-        var node = go.GetComponent<NodeMonster>();
-        node.Initialize(gameManager, Release);
-        go.SetActive(false);
-        return node;
+        while (conductor.SongTime < 0) yield return null;
+
+        var cues = GetCues();
+        if (cues == null || cues.Count == 0) yield break;
+
+        var sortedCues = new List<PatternSO.SpawnCue>(cues);
+        sortedCues.Sort((a, b) => (a.beat + a.subBeat).CompareTo(b.beat + b.subBeat));
+
+        int eventIndex = 0;
+        double cycleOffset = 0;
+
+        while (true)
+        {
+            if (eventIndex >= sortedCues.Count)
+            {
+                if (patternSO.loop) { eventIndex = 0; cycleOffset += patternSO.lengthBeats; }
+                else break;
+            }
+
+            var cue = sortedCues[eventIndex];
+            double baseTargetBeat = cycleOffset + cue.beat + cue.subBeat;
+
+            while (conductor.CurrentBeat < baseTargetBeat) yield return null;
+
+            for (int i = 0; i < cue.count; i++)
+            {
+                if (i > 0)
+                {
+                    double nextBeat = baseTargetBeat + (cue.withinCueSpacingBeats * i);
+                    while (conductor.CurrentBeat < nextBeat) yield return null;
+                }
+                SpawnSpecificNote(cue.prefab, cue.laneId);
+            }
+
+            eventIndex++;
+        }
     }
 
-    private NodeMonster Get()
+    private IList<PatternSO.SpawnCue> GetCues()
     {
-        NodeMonster node;
-
-        if (pool.Count > 0) node = pool.Dequeue();
-        else node = CreateNew();
-
-        if (activeRoot != null)
-            node.transform.SetParent(activeRoot, true);
-
-        actives.Add(node);
-        return node;
+        return patternSO != null ? patternSO.cues : null;
     }
 
-    private void Release(NodeMonster node)
+    private void SpawnSpecificNote(GameObject prefab, string laneIdStr)
     {
-        if (node == null) return;
+        if (prefab == null || laneSpawnPoints == null || laneSpawnPoints.Length == 0) return;
+        if (activeRoot == null) return;
 
-        actives.Remove(node);
+        int laneIdx = ResolveLaneIndex(laneIdStr, laneSpawnPoints.Length);
+        Transform sp = laneSpawnPoints[laneIdx];
 
+        GameObject go = GetFromPool(prefab);
+        go.transform.SetParent(activeRoot, true);
+        go.transform.SetPositionAndRotation(sp.position, sp.rotation);
+        go.SetActive(true);
+
+        if (go.TryGetComponent(out NodeMonster node))
+        {
+            node.Initialize(gameManager, (n) => ReturnToPool(n.gameObject));
+            node.Spawn(sp.position, null);
+        }
+    }
+
+    private int ResolveLaneIndex(string laneIdStr, int laneCount)
+    {
+        if (laneCount <= 0) return 0;
+
+        int idx = 0;
+
+        if (!string.IsNullOrEmpty(laneIdStr))
+        {
+            int parsed = -1;
+
+            if (int.TryParse(laneIdStr, out int direct))
+            {
+                parsed = direct;
+            }
+            else
+            {
+                int value = 0;
+                bool hasDigit = false;
+
+                for (int i = 0; i < laneIdStr.Length; i++)
+                {
+                    char c = laneIdStr[i];
+                    if (c < '0' || c > '9') continue;
+                    hasDigit = true;
+                    value = (value * 10) + (c - '0');
+                }
+
+                if (hasDigit) parsed = value;
+            }
+
+            if (parsed >= 0) idx = parsed;
+        }
+
+        return Mathf.Clamp(idx, 0, laneCount - 1);
+    }
+
+    private GameObject GetFromPool(GameObject prefab)
+    {
         if (poolRoot != null)
-            node.transform.SetParent(poolRoot, true);
+        {
+            for (int i = poolRoot.childCount - 1; i >= 0; i--)
+            {
+                var child = poolRoot.GetChild(i);
+                if (child != null && child.name == prefab.name)
+                    return child.gameObject;
+            }
+        }
 
-        node.gameObject.SetActive(false);
-        pool.Enqueue(node);
+        var go = Instantiate(prefab);
+        go.name = prefab.name;
+        go.SetActive(false);
+        return go;
     }
 
-    private void OnBeat(BeatInfo beatInfo)
+    private void ReturnToPool(GameObject go)
     {
-        if (!running) return;
-        if (nodePrefab == null || spawnPoint == null) return;
-
-        if (beatInfo.BeatIndex % spawnEveryNBeats != 0)
-            return;
-
-        var node = Get();
-        node.Spawn(spawnPoint.position, nodeSprite);
-    }
-
-    private void OnDestroy()
-    {
-        StopSpawning();
+        if (go == null) return;
+        go.SetActive(false);
+        if (poolRoot != null) go.transform.SetParent(poolRoot, false);
+        else go.transform.SetParent(null, false);
     }
 }

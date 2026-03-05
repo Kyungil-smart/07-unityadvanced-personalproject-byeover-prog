@@ -7,6 +7,8 @@ public sealed class PlayerHitJudgeArea : MonoBehaviour
     [SerializeField, Tooltip("판정 키")] private KeyCode hitKey = KeyCode.Space;
 
     private readonly List<NodeMonster> nodesInArea = new List<NodeMonster>(16);
+    private readonly Dictionary<NodeMonster, int> contactCount = new Dictionary<NodeMonster, int>(32);
+
     private Transform self;
 
     private void Awake()
@@ -24,7 +26,7 @@ public sealed class PlayerHitJudgeArea : MonoBehaviour
         NodeMonster best = null;
         float bestDist = float.MaxValue;
 
-        var centerX = self.position.x;
+        float centerX = self.position.x;
 
         for (int i = 0; i < nodesInArea.Count; i++)
         {
@@ -32,7 +34,7 @@ public sealed class PlayerHitJudgeArea : MonoBehaviour
             if (n == null) continue;
             if (n.IsJudged) continue;
 
-            var d = Mathf.Abs(n.transform.position.x - centerX);
+            float d = Mathf.Abs(n.transform.position.x - centerX);
             if (d < bestDist)
             {
                 bestDist = d;
@@ -42,14 +44,18 @@ public sealed class PlayerHitJudgeArea : MonoBehaviour
 
         if (best == null) return;
 
-        nodesInArea.Remove(best);
+        RemoveNode(best);
         best.Hit();
     }
 
     private void OnTriggerEnter2D(Collider2D other)
     {
-        if (!other.TryGetComponent(out NodeMonster node)) return;
+        var node = other.GetComponentInParent<NodeMonster>();
+        if (node == null) return;
         if (node.IsJudged) return;
+
+        if (contactCount.TryGetValue(node, out int c)) contactCount[node] = c + 1;
+        else contactCount[node] = 1;
 
         if (!nodesInArea.Contains(node))
             nodesInArea.Add(node);
@@ -57,12 +63,29 @@ public sealed class PlayerHitJudgeArea : MonoBehaviour
 
     private void OnTriggerExit2D(Collider2D other)
     {
-        if (!other.TryGetComponent(out NodeMonster node)) return;
+        var node = other.GetComponentInParent<NodeMonster>();
+        if (node == null) return;
 
+        if (!contactCount.TryGetValue(node, out int c)) return;
+
+        c -= 1;
+        if (c > 0)
+        {
+            contactCount[node] = c;
+            return;
+        }
+
+        contactCount.Remove(node);
         nodesInArea.Remove(node);
 
         if (!node.IsJudged)
             node.Miss();
+    }
+
+    private void RemoveNode(NodeMonster node)
+    {
+        nodesInArea.Remove(node);
+        contactCount.Remove(node);
     }
 
     private void CleanupNulls()
@@ -71,7 +94,10 @@ public sealed class PlayerHitJudgeArea : MonoBehaviour
         {
             var n = nodesInArea[i];
             if (n == null || !n.gameObject.activeInHierarchy)
+            {
                 nodesInArea.RemoveAt(i);
+                if (n != null) contactCount.Remove(n);
+            }
         }
     }
 }

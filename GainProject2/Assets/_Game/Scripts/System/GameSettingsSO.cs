@@ -1,6 +1,6 @@
 using UnityEngine;
 
-[CreateAssetMenu(menuName = "리듬게임/게임 설정")]
+[CreateAssetMenu(menuName = "리듬 도사/게임 설정")]
 public sealed class GameSettingsSO : ScriptableObject
 {
     [Header("노드 이동")]
