@@ -29,7 +29,7 @@ public sealed class StoryManager : MonoBehaviour
     [SerializeField] private TMP_Text logText;
 
     [Header("연출 설정")]
-    [SerializeField, Min(1f), Tooltip("초당 표시할 글자 수")]
+    [SerializeField, Min(1f), Tooltip("초당 표시할 글자 수 (옵션에서 조절 가능)")]
     private float charactersPerSecond = 40f;
 
     [SerializeField, Min(0f), Tooltip("Auto 모드에서 다음 대사로 넘어가기 전 대기 시간")]
@@ -41,6 +41,20 @@ public sealed class StoryManager : MonoBehaviour
 
     [SerializeField, Tooltip("마우스 좌클릭으로 진행할지")]
     private bool useClickToAdvance = true;
+
+    // 외부에서 글자 속도 조절 (옵션 메뉴 등)
+    public float CharactersPerSecond
+    {
+        get => charactersPerSecond;
+        set => charactersPerSecond = Mathf.Max(1f, value);
+    }
+
+    // Auto 모드 대기 시간 조절
+    public float AutoDelay
+    {
+        get => autoDelay;
+        set => autoDelay = Mathf.Max(0f, value);
+    }
 
     private int currentIndex;
     private bool isTyping;
@@ -110,7 +124,8 @@ public sealed class StoryManager : MonoBehaviour
         history.Clear();
         if (logText != null) logText.text = string.Empty;
 
-        PlayLine(currentIndex);
+        // 빈 대사 스킵하면서 첫 유효 라인 찾기
+        SkipEmptyAndPlay();
     }
 
     private void HandleAdvanceInput()
@@ -181,6 +196,7 @@ public sealed class StoryManager : MonoBehaviour
         int visible = 0;
         float progress = 0f;
 
+        // charactersPerSecond를 실시간으로 참조
         while (visible < currentTotalCharacters)
         {
             progress += Time.unscaledDeltaTime * charactersPerSecond;
@@ -222,7 +238,30 @@ public sealed class StoryManager : MonoBehaviour
     private void NextLine()
     {
         currentIndex++;
-        PlayLine(currentIndex);
+        SkipEmptyAndPlay();
+    }
+
+    // 빈 대사(dialogueText가 비어있는) 라인은 자동 스킵
+    private void SkipEmptyAndPlay()
+    {
+        if (currentStory == null || currentStory.lines == null)
+        {
+            FinishStory();
+            return;
+        }
+
+        while (currentIndex < currentStory.lines.Length)
+        {
+            var line = currentStory.lines[currentIndex];
+            if (!string.IsNullOrWhiteSpace(line.dialogueText))
+            {
+                PlayLine(currentIndex);
+                return;
+            }
+            currentIndex++;
+        }
+
+        FinishStory();
     }
 
     private void ToggleAutoMode()
@@ -275,7 +314,8 @@ public sealed class StoryManager : MonoBehaviour
     {
         string s = speaker ?? string.Empty;
         string t = text ?? string.Empty;
-        history.Add($"[{s}] {t}");
+        if (!string.IsNullOrWhiteSpace(t))
+            history.Add($"[{s}] {t}");
     }
 
     private void SkipStory()

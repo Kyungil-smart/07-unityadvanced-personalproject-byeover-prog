@@ -18,6 +18,10 @@ public sealed class NodeMonster : MonoBehaviour
     [Header("히트 회수")]
     [SerializeField, Tooltip("히트 후 회수 지연(초)")] private float hitReturnDelay = 0.05f;
 
+    [Header("미스 후 이동")]
+    [SerializeField, Tooltip("미스 후 플레이어 방향으로 이동 속도")] private float missSpeed = 8f;
+    [SerializeField, Tooltip("미스 후 이동 방향 (보통 Vector3.left)")] private Vector3 missDirection = Vector3.left;
+
     private GameManager gameManager;
     private Action<NodeMonster> returnToPool;
     private int missDamage;
@@ -115,10 +119,18 @@ public sealed class NodeMonster : MonoBehaviour
 
         judgedMiss = true;
 
+        // 기존 Mover 정지 → 미스 전용 이동으로 전환
+        StopMovement();
+
+        // 데미지 콜라이더 활성화
         if (damageTriggerCollider != null)
             damageTriggerCollider.enabled = true;
 
         AnimatorParamUtil.TrySetTrigger(animator, missTrigger);
+
+        // NodeMiss 이벤트 발생
+        if (gameManager != null)
+            gameManager.Events.RaiseNodeMiss();
     }
 
     private void EnsureInitialized()
@@ -149,6 +161,9 @@ public sealed class NodeMonster : MonoBehaviour
 
         if (!judgedMiss) return;
 
+        // 미스 후 플레이어 방향으로 계속 이동
+        transform.position += missDirection.normalized * (missSpeed * Time.deltaTime);
+
         if (transform.position.x <= despawnX)
             Return();
     }
@@ -158,6 +173,7 @@ public sealed class NodeMonster : MonoBehaviour
         if (!judgedMiss) return;
         if (damageTriggerCollider == null || !damageTriggerCollider.enabled) return;
 
+        // 플레이어 체력 감소
         if (other.TryGetComponent(out PlayerHealth playerHealth))
         {
             playerHealth.ApplyDamage(missDamage);

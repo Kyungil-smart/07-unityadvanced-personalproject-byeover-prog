@@ -34,18 +34,18 @@ MonoBehaviour:
     nodeSprite: {fileID: 21300000, guid: c96b7380946421246b83b39d4fd116f3, type: 3}
     musicClip: {fileID: 8300000, guid: 61527117876eaf444acb4853db2c4c4f, type: 3}
     bpm: 130
-    firstBeatOffset: 0
-    forcedSongLength: 0
-    spawnEveryNBeats: 4
+    firstBeatOffset: 3
+    forcedSongLength: 44
+    spawnEveryNBeats: 0
     spawnPattern: 
-    spawnPatternSO: {fileID: 11400000, guid: a326258e7b598d940b224218383d968f, type: 2}
-    nodeMonsterPrefab: {fileID: 0}
+    spawnPatternSO: {fileID: 0}
+    nodeMonsterPrefab: {fileID: 2579491219120451950, guid: 943307e84c4eb9649a9ad7dd0f1ae000, type: 3}
     randomMonsterPrefabs: []
     bossPrefab: {fileID: 1503589839371492729, guid: 855db52d0464db24ead6e51a12364596, type: 3}
     obstacleType: 0
     csvSpawnPatternSO: {fileID: 11400000, guid: dbefcd6978355be44badbe4001a941e5, type: 2}
     monsterCatalogSO: {fileID: 11400000, guid: 860b89bc8cba43c4fa16bc959ed6433a, type: 2}
-  - stageIndex: 0
+  - stageIndex: 2
     stageName: Stage 2
     nodeSprite: {fileID: 0}
     musicClip: {fileID: 8300000, guid: b399225c4f1ddb549b7ca00c667d1957, type: 3}
@@ -61,7 +61,7 @@ MonoBehaviour:
     obstacleType: 0
     csvSpawnPatternSO: {fileID: 0}
     monsterCatalogSO: {fileID: 0}
-  - stageIndex: 0
+  - stageIndex: 3
     stageName: Stage 3
     nodeSprite: {fileID: 0}
     musicClip: {fileID: 0}
@@ -77,7 +77,7 @@ MonoBehaviour:
     obstacleType: 0
     csvSpawnPatternSO: {fileID: 0}
     monsterCatalogSO: {fileID: 0}
-  - stageIndex: 2
+  - stageIndex: 4
     stageName: Stage 4
     nodeSprite: {fileID: 0}
     musicClip: {fileID: 0}
@@ -93,7 +93,7 @@ MonoBehaviour:
     obstacleType: 0
     csvSpawnPatternSO: {fileID: 0}
     monsterCatalogSO: {fileID: 0}
-  - stageIndex: 2
+  - stageIndex: 5
     stageName: Stage 5
     nodeSprite: {fileID: 0}
     musicClip: {fileID: 0}
@@ -109,7 +109,7 @@ MonoBehaviour:
     obstacleType: 0
     csvSpawnPatternSO: {fileID: 0}
     monsterCatalogSO: {fileID: 0}
-  - stageIndex: 3
+  - stageIndex: 6
     stageName: Stage 6
     nodeSprite: {fileID: 0}
     musicClip: {fileID: 0}
@@ -125,7 +125,7 @@ MonoBehaviour:
     obstacleType: 0
     csvSpawnPatternSO: {fileID: 0}
     monsterCatalogSO: {fileID: 0}
-  - stageIndex: 4
+  - stageIndex: 7
     stageName: Stage 7
     nodeSprite: {fileID: 0}
     musicClip: {fileID: 0}
@@ -141,7 +141,7 @@ MonoBehaviour:
     obstacleType: 0
     csvSpawnPatternSO: {fileID: 0}
     monsterCatalogSO: {fileID: 0}
-  - stageIndex: 0
+  - stageIndex: 8
     stageName: Stage 8
     nodeSprite: {fileID: 0}
     musicClip: {fileID: 0}

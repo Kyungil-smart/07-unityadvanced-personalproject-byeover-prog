@@ -32,6 +32,13 @@ public sealed class BossController : MonoBehaviour
         SyncUI(true);
     }
 
+    // 런타임에서 HP바 UI 연결 (StageManager에서 호출)
+    public void SetHpBarUI(BossHpBarUI ui)
+    {
+        hpBarUI = ui;
+        SyncUI(true);
+    }
+
     public void ApplyDamage(int damage)
     {
         if (damage <= 0) return;

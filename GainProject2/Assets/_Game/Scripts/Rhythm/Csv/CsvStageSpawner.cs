@@ -1,298 +1,231 @@
-using System;
 using System.Collections.Generic;
 using System.Globalization;
 using UnityEngine;
+using _Game.Scripts.Rhythm;
 using GnalIhu.Rhythm;
 
-[DisallowMultipleComponent]
 public sealed class CsvStageSpawner : MonoBehaviour
 {
-    [Serializable]
-    private struct SpawnRow
+    [System.Serializable]
+    private struct MonsterEntry
     {
-        public double spawnBeat;
+        [Tooltip("CSV의 monsterId")] public int id;
+        [Tooltip("스폰할 프리팹")] public GameObject prefab;
+    }
+
+    private struct SpawnEvent
+    {
+        public float impactBeat;
         public int lane;
-        public string monsterId;
+        public int monsterId;
     }
 
     [Header("참조")]
     [SerializeField] private RhythmConductor conductor;
 
-    [Header("스폰 포인트")]
-    [SerializeField] private Transform lane1Spawn;
-    [SerializeField] private Transform lane2Spawn;
-    [SerializeField] private Transform lane3Spawn;
-    [SerializeField] private Transform lane4Spawn;
-
-    [Header("이동 시간")]
-    [SerializeField, Tooltip("스폰 → 히트라인 도착 시간(초)")] private float travelTimeSeconds = 1.2f;
-
-    [Header("스폰 간격 제한")]
-    [SerializeField, Tooltip("같은 레인 최소 스폰 간격(박자)")] private float minBeatGapPerLane = 1f;
-    [SerializeField, Tooltip("전체 최소 스폰 간격(박자)")] private float minBeatGapGlobal = 0.25f;
-
-    [Header("리듬닥터 게이트")]
-    [SerializeField, Tooltip("활성화하면 레인당 1마리만 유지(히트라인 통과 후 다음 박자에 다음 스폰)")]
-    private bool rhythmDoctorGate = true;
+    [Header("몬스터 매핑")]
+    [SerializeField, Tooltip("CSV monsterId -> 프리팹 매핑")] private MonsterEntry[] monsterEntries;
 
     [Header("디버그")]
-    [SerializeField] private bool verboseLog;
+    [SerializeField, Tooltip("경고 로그 출력")] private bool verboseLog = true;
 
-    private readonly List<SpawnRow> rows = new List<SpawnRow>(1024);
+    private readonly Dictionary<int, GameObject> idToPrefab = new Dictionary<int, GameObject>(32);
+    private readonly HashSet<int> missingLoggedIds = new HashSet<int>();
 
-    private readonly List<SpawnRow>[] laneRows = new List<SpawnRow>[5];
-    private readonly int[] laneCursor = { 0, 0, 0, 0, 0 };
-
-    private readonly int[] laneCurrentNodeId = { 0, 0, 0, 0, 0 };
-    private readonly double[] laneNextAllowedBeat = { 0, 0, 0, 0, 0 };
-
-    private int cursor;
-    private bool running;
-
-    private double bpm;
-    private double beatDur;
-
-    private MonsterCatalogSO catalog;
     private CsvSpawnPatternSO pattern;
+    private float bpm;
+    private float travelTime;
+    private float songLength;
+    private float travelBeat;
 
-    public void Configure(CsvSpawnPatternSO patternSO, MonsterCatalogSO catalogSO, float stageBpm, float travelSeconds)
+    private readonly List<SpawnEvent> events = new List<SpawnEvent>(256);
+    private int spawnIndex;
+    private bool spawning;
+
+    private Transform[] laneSpawnPoints;
+
+    public void SetConductor(RhythmConductor conductorRef)
+    {
+        if (conductorRef != null) conductor = conductorRef;
+    }
+
+    public void SetLaneSpawnPoints(Transform[] lanes)
+    {
+        laneSpawnPoints = lanes;
+    }
+
+    public void Configure(
+        CsvSpawnPatternSO patternSO,
+        MonsterCatalogSO monsterCatalogSO,
+        float stageBpm,
+        float nodeTravelTime,
+        float forcedSongLength)
     {
         pattern = patternSO;
-        catalog = catalogSO;
+        bpm = stageBpm;
+        travelTime = nodeTravelTime;
+        songLength = forcedSongLength;
 
-        bpm = Math.Max(1.0, stageBpm);
-        beatDur = 60.0 / bpm;
+        if (conductor == null)
+            conductor = FindFirstObjectByType<RhythmConductor>();
 
-        travelTimeSeconds = Mathf.Max(0.05f, travelSeconds);
+        if (bpm <= 0f) bpm = 120f;
 
-        BuildRows();
+        travelBeat = travelTime * (bpm / 60f);
 
-        cursor = 0;
-        for (int lane = 1; lane <= 4; lane++)
-        {
-            laneCursor[lane] = 0;
-            laneCurrentNodeId[lane] = 0;
-            laneNextAllowedBeat[lane] = 0.0;
-        }
+        BuildPrefabMap();
+        ParseCsv();
 
-        running = true;
-
-        if (verboseLog)
-            Debug.Log($"[CsvStageSpawner] configured rows={rows.Count} bpm={bpm:0.##} travel={travelTimeSeconds:0.###}s gate={rhythmDoctorGate}", this);
+        spawnIndex = 0;
+        spawning = true;
     }
 
-    private void Awake()
+    public void StopSpawning()
     {
-        if (conductor == null) conductor = FindFirstObjectByType<RhythmConductor>();
-
-        for (int lane = 1; lane <= 4; lane++)
-        {
-            if (laneRows[lane] == null) laneRows[lane] = new List<SpawnRow>(256);
-        }
-    }
-
-    private void Update()
-    {
-        if (!running) return;
-        if (conductor == null) return;
-
-        double nowBeat = conductor.SongTime / beatDur;
-
-        if (!rhythmDoctorGate)
-        {
-            if (cursor >= rows.Count) return;
-
-            while (cursor < rows.Count)
-            {
-                var r = rows[cursor];
-                if (nowBeat + 1e-6 < r.spawnBeat) break;
-
-                Spawn(r.lane, r.monsterId, false);
-                cursor++;
-            }
-
-            return;
-        }
-
-        for (int lane = 1; lane <= 4; lane++)
-        {
-            if (laneCurrentNodeId[lane] != 0) continue;
-            if (nowBeat + 1e-6 < laneNextAllowedBeat[lane]) continue;
-            if (laneCursor[lane] >= laneRows[lane].Count) continue;
-
-            var r = laneRows[lane][laneCursor[lane]];
-            if (nowBeat + 1e-6 < r.spawnBeat) continue;
-
-            Spawn(lane, r.monsterId, true);
-            laneCursor[lane]++;
-        }
+        spawning = false;
     }
 
     public void NotifyPassedHitLine(int lane, NodeMonster node)
     {
-        if (!rhythmDoctorGate) return;
-        if (lane < 1 || lane > 4) return;
         if (node == null) return;
-
-        int nodeId = node.GetInstanceID();
-        if (laneCurrentNodeId[lane] != nodeId) return;
-
-        laneCurrentNodeId[lane] = 0;
-
-        double nowBeat = (conductor != null) ? (conductor.SongTime / beatDur) : 0.0;
-        double nextBeat = Math.Floor(nowBeat + 1e-6) + 1.0;
-        laneNextAllowedBeat[lane] = nextBeat;
-
-        if (verboseLog)
-            Debug.Log($"[CsvStageSpawner] gate open lane={lane} nextAllowedBeat={laneNextAllowedBeat[lane]:0.###}", this);
     }
 
-    private void BuildRows()
+    private void Update()
     {
-        rows.Clear();
-        for (int lane = 1; lane <= 4; lane++)
+        if (!spawning) return;
+        if (conductor == null) return;
+        if (!conductor.IsRunning) return;
+        if (laneSpawnPoints == null || laneSpawnPoints.Length == 0) return;
+        if (spawnIndex >= events.Count) return;
+
+        if (songLength > 0f && conductor.SongTime >= songLength)
         {
-            if (laneRows[lane] == null) laneRows[lane] = new List<SpawnRow>(256);
-            laneRows[lane].Clear();
+            spawning = false;
+            return;
         }
 
-        if (pattern == null || pattern.Csv == null) return;
+        float currentBeat = conductor.CurrentBeat;
+        SpawnEvent e = events[spawnIndex];
+
+        float spawnBeat = e.impactBeat - travelBeat;
+        if (spawnBeat < 0f) spawnBeat = 0f;
+
+        if (currentBeat >= spawnBeat)
+        {
+            Spawn(e);
+            spawnIndex++;
+        }
+    }
+
+    private void Spawn(SpawnEvent e)
+    {
+        int laneIndex = e.lane - 1;
+        if (laneIndex < 0 || laneIndex >= laneSpawnPoints.Length) return;
+
+        if (!idToPrefab.TryGetValue(e.monsterId, out GameObject prefab) || prefab == null)
+        {
+            if (verboseLog && !missingLoggedIds.Contains(e.monsterId))
+            {
+                missingLoggedIds.Add(e.monsterId);
+                Debug.LogWarning($"[CsvStageSpawner] monsterId 매핑 누락: {e.monsterId}");
+            }
+            return;
+        }
+
+        Transform spawn = laneSpawnPoints[laneIndex];
+        if (spawn == null) return;
+
+        Instantiate(prefab, spawn.position, Quaternion.identity);
+    }
+
+    private void BuildPrefabMap()
+    {
+        idToPrefab.Clear();
+        missingLoggedIds.Clear();
+
+        if (monsterEntries == null) return;
+
+        for (int i = 0; i < monsterEntries.Length; i++)
+        {
+            MonsterEntry e = monsterEntries[i];
+            if (e.prefab == null) continue;
+            idToPrefab[e.id] = e.prefab;
+        }
+    }
+
+    private void ParseCsv()
+    {
+        events.Clear();
+
+        if (pattern == null || pattern.Csv == null)
+        {
+            if (verboseLog) Debug.LogWarning("[CsvStageSpawner] CsvSpawnPatternSO 또는 CSV(TextAsset)가 비어있음");
+            return;
+        }
 
         string text = pattern.Csv.text;
-        if (string.IsNullOrWhiteSpace(text)) return;
+        if (string.IsNullOrEmpty(text))
+        {
+            if (verboseLog) Debug.LogWarning("[CsvStageSpawner] CSV 내용이 비어있음");
+            return;
+        }
 
-        var lines = text.Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries);
+        text = text.Replace("\r", "");
 
+        string[] lines = text.Split('\n');
         int start = pattern.HasHeader ? 1 : 0;
-        double travelBeats = travelTimeSeconds / beatDur;
 
         for (int i = start; i < lines.Length; i++)
         {
-            string line = lines[i].Trim();
+            string line = lines[i];
+            if (string.IsNullOrWhiteSpace(line)) continue;
+
+            line = line.Trim();
             if (line.Length == 0) continue;
-            if (line.StartsWith("#", StringComparison.Ordinal)) continue;
 
-            var cols = line.Split(pattern.Delimiter);
-            if (cols.Length < 3) continue;
+            string[] cols = line.Split(pattern.Delimiter);
+            if (cols.Length < 3)
+            {
+                if (verboseLog) Debug.LogWarning($"[CsvStageSpawner] CSV 컬럼 부족(line {i + 1}): {line}", pattern);
+                continue;
+            }
 
-            if (!TryParseDouble(cols[0], out double impactBeat)) continue;
-            if (!int.TryParse(cols[1].Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out int lane)) continue;
+            string beatStr = cols[0].Trim().Trim('\uFEFF');
+            string laneStr = cols[1].Trim();
+            string idStr = cols[2].Trim();
 
-            string id = cols[2].Trim();
-            if (lane < 1 || lane > 4) continue;
-            if (string.IsNullOrWhiteSpace(id)) continue;
+            if (!float.TryParse(beatStr, NumberStyles.Float, CultureInfo.InvariantCulture, out float beat))
+            {
+                if (verboseLog) Debug.LogWarning($"[CsvStageSpawner] impactBeat 파싱 실패(line {i + 1}): '{beatStr}' | {line}", pattern);
+                continue;
+            }
 
-            double spawnBeat = impactBeat - travelBeats;
-            if (spawnBeat < 0) spawnBeat = 0;
+            if (!int.TryParse(laneStr, NumberStyles.Integer, CultureInfo.InvariantCulture, out int lane))
+            {
+                if (verboseLog) Debug.LogWarning($"[CsvStageSpawner] lane 파싱 실패(line {i + 1}): '{laneStr}' | {line}", pattern);
+                continue;
+            }
 
-            rows.Add(new SpawnRow { spawnBeat = spawnBeat, lane = lane, monsterId = id });
+            if (!int.TryParse(idStr, NumberStyles.Integer, CultureInfo.InvariantCulture, out int monsterId))
+            {
+                if (verboseLog) Debug.LogWarning($"[CsvStageSpawner] monsterId 파싱 실패(line {i + 1}): '{idStr}' | {line}", pattern);
+                continue;
+            }
+
+            if (lane < 1) lane = 1;
+            if (lane > 4) lane = 4;
+
+            SpawnEvent e;
+            e.impactBeat = beat;
+            e.lane = lane;
+            e.monsterId = monsterId;
+
+            events.Add(e);
         }
 
-        rows.Sort((a, b) =>
-        {
-            int c = a.spawnBeat.CompareTo(b.spawnBeat);
-            if (c != 0) return c;
-            c = a.lane.CompareTo(b.lane);
-            if (c != 0) return c;
-            return string.Compare(a.monsterId, b.monsterId, StringComparison.OrdinalIgnoreCase);
-        });
-
-        ApplyBeatGaps();
-
-        for (int i = 0; i < rows.Count; i++)
-        {
-            var r = rows[i];
-            laneRows[r.lane].Add(r);
-        }
+        events.Sort((a, b) => a.impactBeat.CompareTo(b.impactBeat));
 
         if (verboseLog)
-            Debug.Log($"[CsvStageSpawner] parsed rows={rows.Count} travelBeats={travelBeats:0.###} minLaneGap={minBeatGapPerLane:0.###} minGlobalGap={minBeatGapGlobal:0.###}", this);
-    }
-
-    private void ApplyBeatGaps()
-    {
-        if (rows.Count == 0) return;
-
-        double laneGap = Math.Max(0.0, minBeatGapPerLane);
-        double globalGap = Math.Max(0.0, minBeatGapGlobal);
-
-        double[] lastLaneBeat = { -9999, -9999, -9999, -9999, -9999 };
-        double lastGlobalBeat = -9999;
-
-        for (int i = 0; i < rows.Count; i++)
-        {
-            var r = rows[i];
-
-            int lane = Mathf.Clamp(r.lane, 1, 4);
-            double t = r.spawnBeat;
-
-            if (laneGap > 0.0)
-            {
-                double prevLane = lastLaneBeat[lane];
-                double minLane = prevLane + laneGap;
-                if (t < minLane) t = minLane;
-            }
-
-            if (globalGap > 0.0)
-            {
-                double minGlobal = lastGlobalBeat + globalGap;
-                if (t < minGlobal) t = minGlobal;
-            }
-
-            r.spawnBeat = t;
-            rows[i] = r;
-
-            lastLaneBeat[lane] = t;
-            lastGlobalBeat = t;
-        }
-    }
-
-    private void Spawn(int lane, string monsterId, bool applyGate)
-    {
-        if (catalog == null)
-        {
-            if (verboseLog) Debug.LogWarning("[CsvStageSpawner] MonsterCatalogSO 비어있음", this);
-            return;
-        }
-
-        if (!catalog.TryGetPrefab(monsterId, out var prefab) || prefab == null)
-        {
-            if (verboseLog) Debug.LogWarning($"[CsvStageSpawner] monsterId 매핑 실패: {monsterId}", this);
-            return;
-        }
-
-        Transform sp = lane switch
-        {
-            1 => lane1Spawn,
-            2 => lane2Spawn,
-            3 => lane3Spawn,
-            4 => lane4Spawn,
-            _ => null
-        };
-
-        if (sp == null)
-        {
-            if (verboseLog) Debug.LogWarning($"[CsvStageSpawner] SpawnPoint 누락: lane={lane}", this);
-            return;
-        }
-
-        var go = Instantiate(prefab, sp.position, sp.rotation);
-
-        if (!go.TryGetComponent(out NodeMonster node))
-        {
-            if (verboseLog) Debug.LogWarning($"[CsvStageSpawner] NodeMonster 컴포넌트 없음: {go.name}", this);
-            return;
-        }
-
-        if (applyGate)
-        {
-            laneCurrentNodeId[lane] = node.GetInstanceID();
-            laneNextAllowedBeat[lane] = double.PositiveInfinity;
-        }
-    }
-
-    private static bool TryParseDouble(string s, out double v)
-    {
-        return double.TryParse(s.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out v);
+            Debug.Log($"[CsvStageSpawner] CSV 로드 완료: {events.Count}개 이벤트");
     }
 }
