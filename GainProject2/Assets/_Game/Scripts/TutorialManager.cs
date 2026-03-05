@@ -1,7 +1,6 @@
 using System;
 using UnityEngine;
 using TMPro;
-using GnalIhu.Rhythm;
 using System.Collections.Generic;
 
 namespace _Game.Scripts.System

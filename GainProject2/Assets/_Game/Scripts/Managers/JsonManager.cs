@@ -6,7 +6,6 @@ public static class JsonManager
     public static bool TryLoad<T>(string path, out T data) where T : class
     {
         data = null;
-
         if (!File.Exists(path)) return false;
 
         try

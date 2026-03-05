@@ -1,48 +1,36 @@
 using System.Collections;
 using UnityEngine;
-using _Game.Scripts.Rhythm;
 using _Game.Scripts.UI;
-using GnalIhu.Rhythm;
 
 public sealed class StageManager : MonoBehaviour
 {
     [Header("데이터")]
     [SerializeField] private StageCatalogSO stageCatalog;
 
-    [Header("스폰 포인트")]
+    [Header("스폰")]
     [SerializeField] private Transform bossSpawnPoint;
-    [SerializeField] private Transform[] laneSpawnPoints;
-
-    [Header("루트")]
     [SerializeField] private Transform bossRoot;
-    [SerializeField] private Transform nodeActiveRoot;
-    [SerializeField] private Transform nodePoolRoot;
 
     [Header("시스템")]
-    [SerializeField] private CsvStageSpawner csvStageSpawner;
     [SerializeField] private RhythmConductor conductor;
     [SerializeField] private LightningVfxPool lightningVfxPool;
+    [SerializeField] private SimpleBeatSpawner beatSpawner;
 
     [Header("플레이어 및 UI")]
     [SerializeField] private PlayerHealth playerHealth;
-    [SerializeField] private PlayerAutoRunner playerAutoRunner;
+    [SerializeField] private PlayerHeartUI heartUI;
     [SerializeField] private Transform clearLine;
     [SerializeField] private CanvasGroup clearUiGroup;
 
-    [Header("보스 UI")]
-    [SerializeField, Tooltip("보스 체력바 UI (Canvas WorldSpace 또는 Overlay)")]
-    private BossHpBarUI bossHpBarUI;
-    [SerializeField, Tooltip("보스 머리 위 오프셋 (월드 좌표)")]
-    private Vector3 bossHpBarOffset = new Vector3(0f, 2.5f, 0f);
+    [Header("보스 HP바 (상단 고정)")]
+    [SerializeField] private BossHpBarUI bossHpBarUI;
 
     [Header("보스")]
-    [SerializeField, Tooltip("노드 성공 1회당 보스 데미지")] private int damagePerNodeSuccess = 5000;
-    [SerializeField, Tooltip("클리어 연출 중 번개 타격 간격(초)")] private float finisherInterval = 0.05f;
+    [SerializeField] private int damagePerNodeSuccess = 5000;
+    [SerializeField] private float finisherInterval = 0.05f;
 
-    [Header("디버그")]
-    [SerializeField, Tooltip("초기화 후 자동으로 1스테이지 시작(제출용)")] private bool autoStartStage1;
-
-    private static StageManager instance;
+    [Header("음악")]
+    [SerializeField] private float musicLeadIn = 3f;
 
     private GameManager gameManager;
     private StageData currentStage;
@@ -50,133 +38,62 @@ public sealed class StageManager : MonoBehaviour
     private bool stageRunning;
     private bool clearing;
 
-    private bool initialized;
-    private bool stageStartRequested;
-
-    private void Awake()
-    {
-        if (instance != null && instance != this)
-        {
-            Destroy(gameObject);
-            return;
-        }
-
-        instance = this;
-    }
-
     public void Initialize(GameManager manager)
     {
-        if (initialized)
-            UnbindEvents();
-
         gameManager = manager;
-
-        if (gameManager != null)
-        {
-            gameManager.Events.StageRequested += OnStageRequested;
-            gameManager.Events.SongEnded += OnSongEnded;
-            gameManager.Events.NodeSuccess += OnNodeSuccess;
-        }
+        gameManager.Events.StageRequested += OnStageRequested;
+        gameManager.Events.SongEnded += OnSongEnded;
+        gameManager.Events.NodeSuccess += OnNodeSuccess;
 
         if (conductor == null) conductor = FindFirstObjectByType<RhythmConductor>();
+        if (beatSpawner == null) beatSpawner = FindFirstObjectByType<SimpleBeatSpawner>();
+        if (heartUI == null) heartUI = FindFirstObjectByType<PlayerHeartUI>();
 
-        initialized = true;
-
-        if (autoStartStage1)
-            RequestStartStage(1);
+        if (bossHpBarUI == null)
+            bossHpBarUI = FindFirstObjectByType<BossHpBarUI>(FindObjectsInactive.Include);
     }
 
     private void OnDestroy()
     {
-        UnbindEvents();
-
-        if (instance == this)
-            instance = null;
-    }
-
-    private void UnbindEvents()
-    {
         if (gameManager == null) return;
-
         gameManager.Events.StageRequested -= OnStageRequested;
         gameManager.Events.SongEnded -= OnSongEnded;
         gameManager.Events.NodeSuccess -= OnNodeSuccess;
     }
 
-    private void OnStageRequested(int stageIndex)
-    {
-        RequestStartStage(stageIndex);
-    }
-
-    private void RequestStartStage(int stageIndex)
-    {
-        if (!initialized) return;
-        if (stageStartRequested) return;
-
-        stageStartRequested = true;
-        StartStage(stageIndex);
-    }
+    private void OnStageRequested(int stageIndex) => StartStage(stageIndex);
 
     public void StartStage(int stageIndex)
     {
-        if (!initialized) return;
-
-        if (stageCatalog == null || !stageCatalog.TryGetStage(stageIndex, out currentStage))
-        {
-            stageStartRequested = false;
-            return;
-        }
+        if (stageCatalog == null || !stageCatalog.TryGetStage(stageIndex, out currentStage)) return;
 
         StopAllCoroutines();
-
-        if (csvStageSpawner != null) csvStageSpawner.StopSpawning();
-        if (conductor != null) conductor.Stop();
-
         stageRunning = false;
         clearing = false;
 
         if (clearUiGroup != null) clearUiGroup.alpha = 0f;
         if (playerHealth != null) playerHealth.ResetHp();
-
-        if (playerAutoRunner != null && gameManager != null && gameManager.Settings != null)
-        {
-            playerAutoRunner.StopAutoRun();
-            playerAutoRunner.ConfigureSpeed(gameManager.Settings.PlayerAutoRunSpeed);
-        }
+        if (heartUI != null) heartUI.RefreshAll();
 
         SpawnBoss();
 
         if (lightningVfxPool != null)
             lightningVfxPool.Initialize(gameManager, boss != null ? boss.transform : null);
 
-        if (currentStage.MusicClip != null && gameManager != null && gameManager.Audio != null)
-            gameManager.Audio.PlayStageMusic(currentStage.MusicClip, currentStage.Bpm, currentStage.FirstBeatOffset, currentStage.ForcedSongLength);
+        if (conductor != null && currentStage.MusicClip != null)
+            conductor.SetStageMusic(currentStage.MusicClip, currentStage.Bpm, musicLeadIn);
 
-        bool useCsv = currentStage.CsvSpawnPatternSO != null
-                      && currentStage.MonsterCatalogSO != null
-                      && csvStageSpawner != null;
-
-        if (!useCsv)
+        if (beatSpawner != null)
         {
-            stageStartRequested = false;
-            return;
+            beatSpawner.LoadStage(stageIndex);
+            beatSpawner.StartSpawning();
         }
-
-        csvStageSpawner.SetLaneSpawnPoints(laneSpawnPoints);
-
-        csvStageSpawner.Configure(
-            currentStage.CsvSpawnPatternSO,
-            currentStage.MonsterCatalogSO,
-            currentStage.Bpm,
-            1.2f,
-            currentStage.ForcedSongLength
-        );
 
         if (conductor != null) conductor.Play();
 
         stageRunning = true;
 
-        if (gameManager != null)
+        if (gameManager.Events != null)
         {
             gameManager.Events.RaiseStageStarted(stageIndex);
             gameManager.Events.RaiseGameStateChanged(GameState.StagePlaying);
@@ -186,17 +103,22 @@ public sealed class StageManager : MonoBehaviour
     private void SpawnBoss()
     {
         if (bossRoot != null)
-            for (int i = bossRoot.childCount - 1; i >= 0; i--) Destroy(bossRoot.GetChild(i).gameObject);
+            for (int i = bossRoot.childCount - 1; i >= 0; i--)
+                Destroy(bossRoot.GetChild(i).gameObject);
 
         boss = null;
         if (currentStage.BossPrefab == null || bossSpawnPoint == null) return;
 
-        using (_Game.Scripts.Rhythm.BossSpawnContext.Enter("StageManager.SpawnBoss"))
-        {
-            var go = Instantiate(currentStage.BossPrefab, bossSpawnPoint.position, bossSpawnPoint.rotation, bossRoot);
-            boss = go.GetComponent<BossController>();
-        }
+        BossSpawnContext.IsStageManagerSpawning = true;
+        BossSpawnContext.LastReason = "StageManager.SpawnBoss";
 
+        var go = Instantiate(currentStage.BossPrefab, bossSpawnPoint.position, bossSpawnPoint.rotation, bossRoot);
+
+        BossSpawnContext.IsStageManagerSpawning = false;
+
+        boss = go.GetComponent<BossController>();
+
+        // 보스 HP바 연동 (상단 고정 - 위치 이동 없음)
         if (boss != null && bossHpBarUI != null)
         {
             boss.SetHpBarUI(bossHpBarUI);
@@ -205,11 +127,7 @@ public sealed class StageManager : MonoBehaviour
         }
     }
 
-    private void LateUpdate()
-    {
-        if (boss != null && bossHpBarUI != null && bossHpBarUI.FollowTarget)
-            bossHpBarUI.transform.position = boss.transform.position + bossHpBarOffset;
-    }
+    // LateUpdate 보스 추적 코드 삭제 — 상단 고정이니까 필요 없음
 
     private void OnNodeSuccess()
     {
@@ -219,10 +137,7 @@ public sealed class StageManager : MonoBehaviour
 
     private void OnSongEnded()
     {
-        stageStartRequested = false;
-
-        if (csvStageSpawner != null) csvStageSpawner.StopSpawning();
-
+        if (beatSpawner != null) beatSpawner.StopSpawning();
         if (stageRunning && !clearing) StartCoroutine(ClearSequence());
     }
 
@@ -233,10 +148,8 @@ public sealed class StageManager : MonoBehaviour
 
         if (conductor != null) conductor.Stop();
 
-        if (gameManager != null)
-            gameManager.Events.RaiseGameStateChanged(GameState.StageClearing);
-
-        int hitCount = gameManager != null && gameManager.Settings != null ? gameManager.Settings.FinisherHitCount : 24;
+        gameManager.Events.RaiseGameStateChanged(GameState.StageClearing);
+        int hitCount = gameManager.Settings != null ? gameManager.Settings.FinisherHitCount : 24;
 
         for (int i = 0; i < hitCount; i++)
         {
@@ -248,20 +161,13 @@ public sealed class StageManager : MonoBehaviour
         yield return new WaitForSeconds(0.35f);
 
         if (bossHpBarUI != null) bossHpBarUI.Hide();
-
         if (boss != null) boss.gameObject.SetActive(false);
-        if (playerAutoRunner != null) playerAutoRunner.StartAutoRun();
 
-        if (clearLine != null && playerAutoRunner != null)
-            while (playerAutoRunner.transform.position.x < clearLine.position.x) yield return null;
-        else
-            yield return new WaitForSeconds(1f);
+        yield return new WaitForSeconds(1f);
 
         if (clearUiGroup != null) clearUiGroup.alpha = 1f;
-        if (gameManager != null && gameManager.Save != null)
-            gameManager.Save.MarkStageCleared(currentStage.StageIndex);
+        if (gameManager.Save != null) gameManager.Save.MarkStageCleared(currentStage.StageIndex);
 
-        if (gameManager != null)
-            gameManager.Events.RaiseGameStateChanged(GameState.StageClear);
+        gameManager.Events.RaiseGameStateChanged(GameState.StageClear);
     }
 }

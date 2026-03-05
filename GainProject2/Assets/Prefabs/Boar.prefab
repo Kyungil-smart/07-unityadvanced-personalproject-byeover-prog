@@ -216,5 +216,5 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   moveDirection: {x: -1, y: 0, z: 0}
-  stepDistance: 2
+  dashDistance: 2
   smoothTime: 0.05
