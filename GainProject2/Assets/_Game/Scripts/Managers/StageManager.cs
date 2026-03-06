@@ -48,9 +48,7 @@ public sealed class StageManager : MonoBehaviour
         if (conductor == null) conductor = FindFirstObjectByType<RhythmConductor>();
         if (beatSpawner == null) beatSpawner = FindFirstObjectByType<SimpleBeatSpawner>();
         if (heartUI == null) heartUI = FindFirstObjectByType<PlayerHeartUI>();
-
-        if (bossHpBarUI == null)
-            bossHpBarUI = FindFirstObjectByType<BossHpBarUI>(FindObjectsInactive.Include);
+        if (bossHpBarUI == null) bossHpBarUI = FindFirstObjectByType<BossHpBarUI>(FindObjectsInactive.Include);
     }
 
     private void OnDestroy()
@@ -118,7 +116,6 @@ public sealed class StageManager : MonoBehaviour
 
         boss = go.GetComponent<BossController>();
 
-        // 보스 HP바 연동 (상단 고정 - 위치 이동 없음)
         if (boss != null && bossHpBarUI != null)
         {
             boss.SetHpBarUI(bossHpBarUI);
@@ -126,8 +123,17 @@ public sealed class StageManager : MonoBehaviour
             bossHpBarUI.SetNormalized(1f);
         }
     }
+    
+    private void Update()
+    {
+        if (!stageRunning || clearing) return;
 
-    // LateUpdate 보스 추적 코드 삭제 — 상단 고정이니까 필요 없음
+        if (playerHealth != null && playerHealth.CurrentHp <= 0)
+        {
+            stageRunning = false;
+            StartCoroutine(FailSequence());
+        }
+    }
 
     private void OnNodeSuccess()
     {
@@ -147,6 +153,7 @@ public sealed class StageManager : MonoBehaviour
         stageRunning = false;
 
         if (conductor != null) conductor.Stop();
+        if (beatSpawner != null) beatSpawner.StopSpawning();
 
         gameManager.Events.RaiseGameStateChanged(GameState.StageClearing);
         int hitCount = gameManager.Settings != null ? gameManager.Settings.FinisherHitCount : 24;
@@ -169,5 +176,17 @@ public sealed class StageManager : MonoBehaviour
         if (gameManager.Save != null) gameManager.Save.MarkStageCleared(currentStage.StageIndex);
 
         gameManager.Events.RaiseGameStateChanged(GameState.StageClear);
+    }
+    
+    private IEnumerator FailSequence()
+    {
+        clearing = true;
+
+        if (conductor != null) conductor.Stop();
+        if (beatSpawner != null) beatSpawner.StopSpawning();
+
+        yield return new WaitForSeconds(1f);
+
+        gameManager.Events.RaiseGameStateChanged(GameState.StageFailed);
     }
 }

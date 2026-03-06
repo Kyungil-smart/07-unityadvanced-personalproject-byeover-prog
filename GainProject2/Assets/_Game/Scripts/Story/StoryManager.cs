@@ -42,7 +42,7 @@ public sealed class StoryManager : MonoBehaviour
     [SerializeField, Tooltip("마우스 좌클릭으로 진행할지")]
     private bool useClickToAdvance = true;
 
-    // 외부에서 글자 속도 조절 (옵션 메뉴 등)
+    // 외부에서 글자 속도 조절
     public float CharactersPerSecond
     {
         get => charactersPerSecond;

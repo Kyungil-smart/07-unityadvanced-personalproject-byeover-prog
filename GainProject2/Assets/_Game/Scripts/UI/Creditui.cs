@@ -1,137 +1,80 @@
-using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.SceneManagement;
 using TMPro;
 
-[DisallowMultipleComponent]
 public sealed class CreditUI : MonoBehaviour
 {
-    [Header("UI 참조")]
-    [SerializeField, Tooltip("크레딧 텍스트 (RectTransform으로 스크롤)")]
-    private RectTransform creditContent;
+    [Header("참조")]
+    [SerializeField] private RectTransform creditContent;
+    [SerializeField] private TMP_Text creditText;
 
-    [SerializeField, Tooltip("크레딧 텍스트 컴포넌트")]
-    private TMP_Text creditText;
+    [Header("설정")]
+    [SerializeField] private float scrollSpeed = 50f;
+    [SerializeField] private float startDelay = 1f;
+    [SerializeField] private string returnSceneName = "MainMenu";
 
-    [Header("스크롤 설정")]
-    [SerializeField, Tooltip("스크롤 속도 (픽셀/초)")] private float scrollSpeed = 60f;
-    [SerializeField, Tooltip("시작 전 대기 시간(초)")] private float startDelay = 1f;
-    [SerializeField, Tooltip("끝난 후 대기 시간(초)")] private float endDelay = 2f;
+    [Header("크레딧 내용")]
+    [SerializeField, TextArea(10, 30)] private string creditString =
+        "리듬 도사\n\n\n" +
+        "개발\n(Byeover)\n\n" +
+        "기획\n(Byeover)\n\n" +
+        "하율 일러스트\n(라리루(크몽))\n\n" +
+        "배경 아트\n(Chat GPT+직선단순)\n\n" +
+        "도트 아트\n(몬스터 : 리클(아트머그)\n\n" +
+        "도트 아트\n(하율 : 식빵댕이(크몽)\n\n" +
+        "UI/UX 아트\n(권스타)\n\n" +
+        "음악\n(바이스원(Vaice))\n\n" +
+        "프로그래밍\n(Byeover)\n\n\n" +
+        "프로그래밍 도움 주신분\n(최완용)\n\n\n" +
+        "감사합니다!";
 
-    [Header("종료 동작")]
-    [SerializeField, Tooltip("크레딧 종료 후 메인 메뉴 씬으로 이동할지")]
-    private bool returnToMainMenuOnFinish = false;
-    [SerializeField, Tooltip("메인 메뉴 씬 이름")]
-    private string mainMenuSceneName = "MainMenu";
-
-    [Header("크레딧 내용 (Inspector에서 직접 입력)")]
-    [SerializeField, TextArea(10, 30)]
-    private string creditString = @"
-<size=48><b>그날이후</b></size>
-
-<size=36>개발</size>
-정승우
-
-<size=36>프로그래밍</size>
-정승우
-
-<size=36>아트</size>
-(아트 담당)
-
-<size=36>음악</size>
-(음악 담당)
-
-<size=36>기획</size>
-(기획 담당)
-
-<size=36>Special Thanks</size>
-(감사한 분들)
-
-
-<size=24>Powered by Unity</size>
-
-<size=20>© 2026 All Rights Reserved</size>
-";
-
-    private Coroutine scrollCoroutine;
+    private float elapsed;
+    private bool started;
     private float startY;
-    private float targetY;
 
-    private void OnEnable()
+    private void Start()
     {
-        if (creditText != null && !string.IsNullOrWhiteSpace(creditString))
+        if (creditText != null)
             creditText.text = creditString;
 
-        if (scrollCoroutine != null) StopCoroutine(scrollCoroutine);
-        scrollCoroutine = StartCoroutine(ScrollCredit());
-    }
-
-    private void OnDisable()
-    {
-        if (scrollCoroutine != null)
+        if (creditContent != null)
         {
-            StopCoroutine(scrollCoroutine);
-            scrollCoroutine = null;
+            startY = creditContent.anchoredPosition.y;
+            // 화면 아래에서 시작
+            creditContent.anchoredPosition = new Vector2(
+                creditContent.anchoredPosition.x,
+                startY - Screen.height
+            );
         }
     }
 
     private void Update()
     {
+        elapsed += Time.unscaledDeltaTime;
+
+        if (elapsed < startDelay) return;
+        started = true;
+
+        // 스크롤
+        if (creditContent != null)
+        {
+            var pos = creditContent.anchoredPosition;
+            pos.y += scrollSpeed * Time.unscaledDeltaTime;
+            creditContent.anchoredPosition = pos;
+        }
+        
         if (Input.anyKeyDown)
         {
-            FinishCredit();
+            ReturnToMenu();
         }
     }
 
-    private IEnumerator ScrollCredit()
+    private void ReturnToMenu()
     {
-        if (creditContent == null) yield break;
-        
-        yield return null;
+        Time.timeScale = 1f;
 
-        startY = creditContent.anchoredPosition.y;
-        float contentHeight = creditContent.rect.height;
-        float parentHeight = 0f;
-
-        var parent = creditContent.parent as RectTransform;
-        if (parent != null) parentHeight = parent.rect.height;
-
-        targetY = startY + contentHeight + parentHeight;
-
-        creditContent.anchoredPosition = new Vector2(creditContent.anchoredPosition.x, startY);
-
-        yield return new WaitForSecondsRealtime(startDelay);
-
-        float currentY = startY;
-
-        while (currentY < targetY)
-        {
-            currentY += scrollSpeed * Time.unscaledDeltaTime;
-            creditContent.anchoredPosition = new Vector2(creditContent.anchoredPosition.x, currentY);
-            yield return null;
-        }
-
-        yield return new WaitForSecondsRealtime(endDelay);
-
-        FinishCredit();
-    }
-
-    private void FinishCredit()
-    {
-        if (scrollCoroutine != null)
-        {
-            StopCoroutine(scrollCoroutine);
-            scrollCoroutine = null;
-        }
-
-        if (returnToMainMenuOnFinish && !string.IsNullOrWhiteSpace(mainMenuSceneName))
-        {
-            Time.timeScale = 1f;
-            UnityEngine.SceneManagement.SceneManager.LoadScene(mainMenuSceneName);
-        }
-        else
-        {
-            gameObject.SetActive(false);
-        }
+        if (!string.IsNullOrWhiteSpace(returnSceneName))
+            SceneManager.LoadScene(returnSceneName);
     }
 }

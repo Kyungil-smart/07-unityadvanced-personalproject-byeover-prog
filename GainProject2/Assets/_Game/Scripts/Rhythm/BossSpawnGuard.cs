@@ -23,7 +23,6 @@ namespace _Game.Scripts.Rhythm
 
         private void Awake()
         {
-            // ── 스폰 가드 체크 ──
             if (!BossSpawnContext.IsStageManagerSpawning)
             {
                 if (logError)
@@ -41,7 +40,7 @@ namespace _Game.Scripts.Rhythm
                 }
             }
 
-            // ── HP바 자동 연동 ──
+            // HP바 자동 연동
             if (autoBindHpBar)
             {
                 BindHpBar();

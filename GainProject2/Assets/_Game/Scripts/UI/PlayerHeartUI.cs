@@ -92,7 +92,7 @@ public sealed class PlayerHeartUI : MonoBehaviour
         int prevHp = lastKnownHp;
         lastKnownHp = hp;
 
-        // HP가 줄었으면 → 깨짐 애니메이션
+        // HP가 줄었으면 -> 깨짐 애니메이션
         if (hp < prevHp)
         {
             for (int i = prevHp - 1; i >= hp; i--)
@@ -101,7 +101,7 @@ public sealed class PlayerHeartUI : MonoBehaviour
                     PlayBreakAnim(i);
             }
         }
-        // HP가 늘었으면 → 회복 애니메이션
+        // HP가 늘었으면 -> 회복 애니메이션
         else if (hp > prevHp)
         {
             for (int i = prevHp; i < hp; i++)
@@ -142,7 +142,7 @@ public sealed class PlayerHeartUI : MonoBehaviour
             }
         }
 
-        // 마지막 → 빈 하트
+        // 마지막 -> 빈 하트
         if (emptyHeartSprite != null) img.sprite = emptyHeartSprite;
 
         heartAnims[index] = null;
@@ -166,7 +166,7 @@ public sealed class PlayerHeartUI : MonoBehaviour
             }
         }
 
-        // 마지막 → 꽉 찬 하트
+        // 마지막 -> 꽉 찬 하트
         if (fullHeartSprite != null) img.sprite = fullHeartSprite;
 
         heartAnims[index] = null;
@@ -181,7 +181,7 @@ public sealed class PlayerHeartUI : MonoBehaviour
         }
     }
 
-    /// <summary>전체 즉시 갱신 (애니메이션 없이)</summary>
+    // 전체 즉시 갱신
     public void RefreshAll()
     {
         if (playerHealth == null || heartImages == null) return;

@@ -1,6 +1,5 @@
 using System.Collections;
 using UnityEngine;
-using UnityEngine.UI;
 
 namespace _Game.Scripts.Rhythm
 {
@@ -8,153 +7,92 @@ namespace _Game.Scripts.Rhythm
     public sealed class HitBarEffect : MonoBehaviour
     {
         [Header("참조")]
-        [SerializeField, Tooltip("월드 스프라이트용(선택)")] private SpriteRenderer spriteRenderer;
-        [SerializeField, Tooltip("UI 이미지/텍스트 등(선택)")] private Graphic uiGraphic;
+        [SerializeField] private SpriteRenderer barRenderer;
 
         [Header("플래시")]
-        [SerializeField, Tooltip("최대 밝기 유지 시간")] private float holdDuration = 0.05f;
-        [SerializeField, Tooltip("사라지는 시간")] private float fadeDuration = 0.12f;
-        [SerializeField, Tooltip("타임스케일 무시 여부")] private bool useUnscaledTime = true;
+        [SerializeField, Tooltip("최대 밝기 유지 시간"), Min(0.01f)]
+        private float holdDuration = 0.03f;
 
-        [Header("반환")]
-        [SerializeField, Tooltip("플래시 종료 후 자동 반환 여부")] private bool autoReturnToPool = true;
+        [SerializeField, Tooltip("페이드아웃 시간"), Min(0.01f)]
+        private float fadeDuration = 0.2f;
 
-        private HitBarPool pool;
-        private Coroutine running;
-        private Color baseColor;
-        private bool initialized;
+        [SerializeField, Tooltip("타임스케일 무시")]
+        private bool useUnscaledTime = true;
+
+        private HitBarPool _pool;
+        private Color _baseColor;
+        private Coroutine _running;
 
         private void Awake()
         {
-            if (spriteRenderer == null) spriteRenderer = GetComponent<SpriteRenderer>();
-            if (uiGraphic == null) uiGraphic = GetComponent<Graphic>();
-
-            if (spriteRenderer != null)
-            {
-                baseColor = spriteRenderer.color;
-                initialized = true;
-                return;
-            }
-
-            if (uiGraphic != null)
-            {
-                baseColor = uiGraphic.color;
-                initialized = true;
-            }
+            if (barRenderer == null) barRenderer = GetComponentInChildren<SpriteRenderer>();
+            if (barRenderer != null) _baseColor = barRenderer.color;
         }
 
-        public void SetPool(HitBarPool ownerPool)
-        {
-            pool = ownerPool;
-        }
+        public void SetPool(HitBarPool pool) => _pool = pool;
 
-        public void PlayFlash(Vector3 position, Color color, float width, float heightScale, int order)
+        public void PlayFlash(Vector3 position, Color color, float widthScale, float heightScale, int sortingOrder)
         {
-            EnsureInit();
-
             transform.position = position;
+            transform.localScale = new Vector3(
+                Mathf.Max(0.001f, widthScale),
+                Mathf.Max(0.001f, heightScale),
+                1f
+            );
 
-            if (spriteRenderer != null)
+            _baseColor = color;
+
+            if (barRenderer != null)
             {
-                spriteRenderer.color = color;
-                spriteRenderer.sortingOrder = order;
-                transform.localScale = new Vector3(Mathf.Max(0.0001f, width), Mathf.Max(0.0001f, heightScale), 1f);
-            }
-            else if (uiGraphic != null)
-            {
-                uiGraphic.color = color;
-                ApplyUiSize(width, heightScale);
-            }
-
-            if (running != null) StopCoroutine(running);
-            running = StartCoroutine(CoFlash());
-        }
-
-        public void Play()
-        {
-            EnsureInit();
-
-            if (running != null) StopCoroutine(running);
-            running = StartCoroutine(CoFlash());
-        }
-
-        private void EnsureInit()
-        {
-            if (initialized) return;
-
-            if (spriteRenderer == null) spriteRenderer = GetComponent<SpriteRenderer>();
-            if (uiGraphic == null) uiGraphic = GetComponent<Graphic>();
-
-            if (spriteRenderer != null)
-            {
-                baseColor = spriteRenderer.color;
-                initialized = true;
-                return;
+                barRenderer.color = color;
+                barRenderer.sortingOrder = sortingOrder;
             }
 
-            if (uiGraphic != null)
-            {
-                baseColor = uiGraphic.color;
-                initialized = true;
-            }
+            if (_running != null) StopCoroutine(_running);
+            _running = StartCoroutine(CoFlash());
         }
 
         private IEnumerator CoFlash()
         {
-            SetAlpha(1f);
+            // Hold: 최대 밝기 유지
+            SetAlpha(_baseColor.a);
 
             float t = 0f;
             while (t < holdDuration)
             {
-                t += useUnscaledTime ? Time.unscaledDeltaTime : Time.deltaTime;
+                t += Dt();
                 yield return null;
             }
 
+            // Fade: 부드럽게 사라짐 (EaseOut)
             t = 0f;
-            float fd = Mathf.Max(0.0001f, fadeDuration);
+            float fd = Mathf.Max(0.001f, fadeDuration);
             while (t < fd)
             {
-                t += useUnscaledTime ? Time.unscaledDeltaTime : Time.deltaTime;
-                float a = 1f - Mathf.Clamp01(t / fd);
-                SetAlpha(a);
+                t += Dt();
+                float progress = Mathf.Clamp01(t / fd);
+                // EaseOutQuad: 처음에 빨리 사라지고 끝에 천천히
+                float eased = 1f - (1f - progress) * (1f - progress);
+                float alpha = Mathf.Lerp(_baseColor.a, 0f, eased);
+                SetAlpha(alpha);
                 yield return null;
             }
 
             SetAlpha(0f);
-            running = null;
+            _running = null;
 
-            if (autoReturnToPool && pool != null)
-                pool.Return(this);
-            else
-                gameObject.SetActive(false);
+            if (_pool != null) _pool.Return(this);
+            else gameObject.SetActive(false);
         }
 
         private void SetAlpha(float a)
         {
-            var c = baseColor;
+            if (barRenderer == null) return;
+            var c = _baseColor;
             c.a = a;
-
-            if (spriteRenderer != null)
-            {
-                spriteRenderer.color = c;
-                return;
-            }
-
-            if (uiGraphic != null)
-                uiGraphic.color = c;
+            barRenderer.color = c;
         }
 
-        private void ApplyUiSize(float width, float heightScale)
-        {
-            if (!TryGetComponent<RectTransform>(out var rt)) return;
-
-            float pxPerUnit = 100f;
-
-            float w = Mathf.Max(1f, width * pxPerUnit);
-            float h = Mathf.Max(1f, heightScale * pxPerUnit);
-
-            rt.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, w);
-            rt.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, h);
-        }
+        private float Dt() => useUnscaledTime ? Time.unscaledDeltaTime : Time.deltaTime;
     }
 }
