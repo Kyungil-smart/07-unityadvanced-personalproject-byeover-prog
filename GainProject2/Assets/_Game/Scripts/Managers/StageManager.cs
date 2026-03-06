@@ -1,37 +1,36 @@
 using System.Collections;
 using UnityEngine;
-using _Game.Scripts.Rhythm;
-using GnalIhu.Rhythm;
+using _Game.Scripts.UI;
 
 public sealed class StageManager : MonoBehaviour
 {
     [Header("데이터")]
     [SerializeField] private StageCatalogSO stageCatalog;
 
-    [Header("스폰 포인트")]
+    [Header("스폰")]
     [SerializeField] private Transform bossSpawnPoint;
-    [SerializeField] private Transform[] laneSpawnPoints;
-
-    [Header("루트")]
     [SerializeField] private Transform bossRoot;
-    [SerializeField] private Transform nodeActiveRoot;
-    [SerializeField] private Transform nodePoolRoot;
 
     [Header("시스템")]
-    [SerializeField] private NoteSpawner noteSpawner;
-    [SerializeField] private CsvStageSpawner csvStageSpawner;
     [SerializeField] private RhythmConductor conductor;
     [SerializeField] private LightningVfxPool lightningVfxPool;
+    [SerializeField] private SimpleBeatSpawner beatSpawner;
 
     [Header("플레이어 및 UI")]
     [SerializeField] private PlayerHealth playerHealth;
-    [SerializeField] private PlayerAutoRunner playerAutoRunner;
+    [SerializeField] private PlayerHeartUI heartUI;
     [SerializeField] private Transform clearLine;
     [SerializeField] private CanvasGroup clearUiGroup;
 
+    [Header("보스 HP바 (상단 고정)")]
+    [SerializeField] private BossHpBarUI bossHpBarUI;
+
     [Header("보스")]
-    [SerializeField, Tooltip("노드 성공 1회당 보스 데미지")] private int damagePerNodeSuccess = 5000;
-    [SerializeField, Tooltip("클리어 연출 중 번개 타격 간격(초)")] private float finisherInterval = 0.05f;
+    [SerializeField] private int damagePerNodeSuccess = 5000;
+    [SerializeField] private float finisherInterval = 0.05f;
+
+    [Header("음악")]
+    [SerializeField] private float musicLeadIn = 3f;
 
     private GameManager gameManager;
     private StageData currentStage;
@@ -42,12 +41,14 @@ public sealed class StageManager : MonoBehaviour
     public void Initialize(GameManager manager)
     {
         gameManager = manager;
-
         gameManager.Events.StageRequested += OnStageRequested;
         gameManager.Events.SongEnded += OnSongEnded;
         gameManager.Events.NodeSuccess += OnNodeSuccess;
 
         if (conductor == null) conductor = FindFirstObjectByType<RhythmConductor>();
+        if (beatSpawner == null) beatSpawner = FindFirstObjectByType<SimpleBeatSpawner>();
+        if (heartUI == null) heartUI = FindFirstObjectByType<PlayerHeartUI>();
+        if (bossHpBarUI == null) bossHpBarUI = FindFirstObjectByType<BossHpBarUI>(FindObjectsInactive.Include);
     }
 
     private void OnDestroy()
@@ -70,55 +71,68 @@ public sealed class StageManager : MonoBehaviour
 
         if (clearUiGroup != null) clearUiGroup.alpha = 0f;
         if (playerHealth != null) playerHealth.ResetHp();
-
-        if (playerAutoRunner != null && gameManager.Settings != null)
-        {
-            playerAutoRunner.StopAutoRun();
-            playerAutoRunner.ConfigureSpeed(gameManager.Settings.PlayerAutoRunSpeed);
-        }
+        if (heartUI != null) heartUI.RefreshAll();
 
         SpawnBoss();
 
         if (lightningVfxPool != null)
             lightningVfxPool.Initialize(gameManager, boss != null ? boss.transform : null);
 
-        if (currentStage.MusicClip != null && gameManager.Audio != null)
-            gameManager.Audio.PlayStageMusic(currentStage.MusicClip, currentStage.Bpm, currentStage.FirstBeatOffset, currentStage.ForcedSongLength);
+        if (conductor != null && currentStage.MusicClip != null)
+            conductor.SetStageMusic(currentStage.MusicClip, currentStage.Bpm, musicLeadIn);
 
-        bool useCsv = currentStage.CsvSpawnPatternSO != null && currentStage.MonsterCatalogSO != null && csvStageSpawner != null;
-
-        if (useCsv)
+        if (beatSpawner != null)
         {
-            csvStageSpawner.Configure(currentStage.CsvSpawnPatternSO, currentStage.MonsterCatalogSO, currentStage.Bpm, 1.2f);
-
-            if (noteSpawner != null)
-                noteSpawner.StopSpawning();
-        }
-        else
-        {
-            if (noteSpawner != null)
-            {
-                noteSpawner.Configure(currentStage, laneSpawnPoints, nodeActiveRoot, nodePoolRoot);
-                noteSpawner.StartSpawning();
-            }
+            beatSpawner.LoadStage(stageIndex);
+            beatSpawner.StartSpawning();
         }
 
         if (conductor != null) conductor.Play();
 
         stageRunning = true;
-        gameManager.Events.RaiseStageStarted(stageIndex);
-        gameManager.Events.RaiseGameStateChanged(GameState.StagePlaying);
+
+        if (gameManager.Events != null)
+        {
+            gameManager.Events.RaiseStageStarted(stageIndex);
+            gameManager.Events.RaiseGameStateChanged(GameState.StagePlaying);
+        }
     }
 
     private void SpawnBoss()
     {
         if (bossRoot != null)
-            for (int i = bossRoot.childCount - 1; i >= 0; i--) Destroy(bossRoot.GetChild(i).gameObject);
+            for (int i = bossRoot.childCount - 1; i >= 0; i--)
+                Destroy(bossRoot.GetChild(i).gameObject);
 
         boss = null;
         if (currentStage.BossPrefab == null || bossSpawnPoint == null) return;
+
+        BossSpawnContext.IsStageManagerSpawning = true;
+        BossSpawnContext.LastReason = "StageManager.SpawnBoss";
+
         var go = Instantiate(currentStage.BossPrefab, bossSpawnPoint.position, bossSpawnPoint.rotation, bossRoot);
+
+        BossSpawnContext.IsStageManagerSpawning = false;
+
         boss = go.GetComponent<BossController>();
+
+        if (boss != null && bossHpBarUI != null)
+        {
+            boss.SetHpBarUI(bossHpBarUI);
+            bossHpBarUI.Show();
+            bossHpBarUI.SetNormalized(1f);
+        }
+    }
+    
+    private void Update()
+    {
+        if (!stageRunning || clearing) return;
+
+        if (playerHealth != null && playerHealth.CurrentHp <= 0)
+        {
+            stageRunning = false;
+            StartCoroutine(FailSequence());
+        }
     }
 
     private void OnNodeSuccess()
@@ -129,6 +143,7 @@ public sealed class StageManager : MonoBehaviour
 
     private void OnSongEnded()
     {
+        if (beatSpawner != null) beatSpawner.StopSpawning();
         if (stageRunning && !clearing) StartCoroutine(ClearSequence());
     }
 
@@ -138,7 +153,7 @@ public sealed class StageManager : MonoBehaviour
         stageRunning = false;
 
         if (conductor != null) conductor.Stop();
-        if (noteSpawner != null) noteSpawner.StopSpawning();
+        if (beatSpawner != null) beatSpawner.StopSpawning();
 
         gameManager.Events.RaiseGameStateChanged(GameState.StageClearing);
         int hitCount = gameManager.Settings != null ? gameManager.Settings.FinisherHitCount : 24;
@@ -151,17 +166,27 @@ public sealed class StageManager : MonoBehaviour
 
         if (boss != null) boss.FinishKill();
         yield return new WaitForSeconds(0.35f);
-        if (boss != null) boss.gameObject.SetActive(false);
-        if (playerAutoRunner != null) playerAutoRunner.StartAutoRun();
 
-        if (clearLine != null && playerAutoRunner != null)
-            while (playerAutoRunner.transform.position.x < clearLine.position.x) yield return null;
-        else
-            yield return new WaitForSeconds(1f);
+        if (bossHpBarUI != null) bossHpBarUI.Hide();
+        if (boss != null) boss.gameObject.SetActive(false);
+
+        yield return new WaitForSeconds(1f);
 
         if (clearUiGroup != null) clearUiGroup.alpha = 1f;
         if (gameManager.Save != null) gameManager.Save.MarkStageCleared(currentStage.StageIndex);
 
         gameManager.Events.RaiseGameStateChanged(GameState.StageClear);
+    }
+    
+    private IEnumerator FailSequence()
+    {
+        clearing = true;
+
+        if (conductor != null) conductor.Stop();
+        if (beatSpawner != null) beatSpawner.StopSpawning();
+
+        yield return new WaitForSeconds(1f);
+
+        gameManager.Events.RaiseGameStateChanged(GameState.StageFailed);
     }
 }

@@ -1,182 +1,186 @@
 using UnityEngine;
+using _Game.Scripts.Rhythm;
 
-public sealed class AudioManager : MonoBehaviour
+namespace _Game.Scripts.Managers
 {
-    [Header("오디오 소스")]
-    [SerializeField] private AudioSource musicSource;
-    [SerializeField] private AudioSource sfxSource;
-
-    [Header("효과음 클립")]
-    [SerializeField] private AudioClip beatTickClip;
-    [SerializeField] private AudioClip hitClip;
-    [SerializeField] private AudioClip missClip;
-
-    [Header("효과음 설정")]
-    [SerializeField, Tooltip("매 박자마다 비트 효과음을 재생할지 여부")]
-    private bool playBeatTick = true;
-
-    [Header("정밀 재생")]
-    [SerializeField, Tooltip("DSP 예약 재생 지연(초)")] private double dspStartDelay = 0.1;
-
-    private GameManager gameManager;
-    private bool scheduled;
-    private double dspStartTime;
-    private float bpm;
-    private float firstBeatOffset;
-    private double nextBeatDspTime;
-    private int beatIndex;
-    private double beatDuration;
-    private double songLength;
-    private bool songEndedRaised;
-
-    public float CurrentSongTime => scheduled ? Mathf.Max(0f, (float)(AudioSettings.dspTime - dspStartTime)) : 0f;
-    public float CurrentSongLength => (float)songLength;
-
-    public void Initialize(GameManager manager)
+    public sealed class AudioManager : MonoBehaviour
     {
-        gameManager = manager;
+        [Header("오디오 소스")]
+        [SerializeField] private AudioSource musicSource;
+        [SerializeField] private AudioSource sfxSource;
 
-        AutoBindSourcesIfNeeded();
+        [Header("효과음 클립")]
+        [SerializeField] private AudioClip beatTickClip;
+        [SerializeField] private AudioClip hitClip;
+        [SerializeField] private AudioClip missClip;
 
-        gameManager.Events.Beat += OnBeat;
-        gameManager.Events.NodeSuccess += OnNodeSuccess;
-        gameManager.Events.NodeMiss += OnNodeMiss;
-    }
+        [Header("효과음 설정")]
+        [SerializeField, Tooltip("매 박자마다 비트 효과음을 재생할지 여부")]
+        private bool playBeatTick = true;
 
-    private void Awake()
-    {
-        AutoBindSourcesIfNeeded();
-    }
+        [Header("정밀 재생")]
+        [SerializeField, Tooltip("DSP 예약 재생 지연(초)")] private double dspStartDelay = 0.1;
 
-    private void AutoBindSourcesIfNeeded()
-    {
-        if (musicSource == null)
+        private GameManager gameManager;
+        private bool scheduled;
+        private double dspStartTime;
+        private float bpm;
+        private float firstBeatOffset;
+        private double nextBeatDspTime;
+        private int beatIndex;
+        private double beatDuration;
+        private double songLength;
+        private bool songEndedRaised;
+
+        public float CurrentSongTime => scheduled ? Mathf.Max(0f, (float)(AudioSettings.dspTime - dspStartTime)) : 0f;
+        public float CurrentSongLength => (float)songLength;
+
+        public void Initialize(GameManager manager)
         {
-            var go = GameObject.Find("BGM_Audio");
-            if (go != null) musicSource = go.GetComponent<AudioSource>();
+            gameManager = manager;
+
+            AutoBindSourcesIfNeeded();
+
+            gameManager.Events.Beat += OnBeat;
+            gameManager.Events.NodeSuccess += OnNodeSuccess;
+            gameManager.Events.NodeMiss += OnNodeMiss;
         }
 
-        if (sfxSource == null)
+        private void Awake()
         {
-            var go = GameObject.Find("SFX_Audio");
-            if (go != null) sfxSource = go.GetComponent<AudioSource>();
+            AutoBindSourcesIfNeeded();
         }
 
-        if (musicSource == null) musicSource = GetComponent<AudioSource>();
-    }
-
-    private void OnDestroy()
-    {
-        if (gameManager != null && gameManager.Events != null)
+        private void AutoBindSourcesIfNeeded()
         {
-            gameManager.Events.Beat -= OnBeat;
-            gameManager.Events.NodeSuccess -= OnNodeSuccess;
-            gameManager.Events.NodeMiss -= OnNodeMiss;
-        }
-    }
-
-    public void PlayStageMusic(AudioClip clip, float stageBpm, float stageFirstBeatOffset, float forcedSongLengthSeconds)
-    {
-        AutoBindSourcesIfNeeded();
-
-        if (musicSource == null || clip == null) return;
-
-        musicSource.Stop();
-        musicSource.clip = clip;
-
-        bpm = Mathf.Max(1f, stageBpm);
-        firstBeatOffset = Mathf.Max(0f, stageFirstBeatOffset);
-
-        beatDuration = 60.0 / bpm;
-
-        dspStartTime = AudioSettings.dspTime + dspStartDelay;
-        musicSource.PlayScheduled(dspStartTime);
-
-        scheduled = true;
-        songEndedRaised = false;
-
-        beatIndex = 0;
-        nextBeatDspTime = dspStartTime + firstBeatOffset;
-
-        double clipLen = clip.length;
-        songLength = forcedSongLengthSeconds > 0f ? forcedSongLengthSeconds : clipLen;
-    }
-
-    public void StopStageMusic()
-    {
-        AutoBindSourcesIfNeeded();
-
-        if (musicSource == null) return;
-
-        musicSource.Stop();
-        scheduled = false;
-        songEndedRaised = true;
-    }
-
-    public void SetPaused(bool paused)
-    {
-        AutoBindSourcesIfNeeded();
-
-        if (musicSource == null) return;
-
-        if (paused) musicSource.Pause();
-        else musicSource.UnPause();
-    }
-
-    private void Update()
-    {
-        if (!scheduled) return;
-
-        double now = AudioSettings.dspTime;
-
-        if (!songEndedRaised)
-        {
-            double songDspTime = now - dspStartTime;
-            if (songDspTime >= songLength)
+            if (musicSource == null)
             {
-                songEndedRaised = true;
-                gameManager.Events.RaiseSongEnded();
+                var go = GameObject.Find("BGM_Audio");
+                if (go != null) musicSource = go.GetComponent<AudioSource>();
+            }
+
+            if (sfxSource == null)
+            {
+                var go = GameObject.Find("SFX_Audio");
+                if (go != null) sfxSource = go.GetComponent<AudioSource>();
+            }
+
+            if (musicSource == null) musicSource = GetComponent<AudioSource>();
+        }
+
+        private void OnDestroy()
+        {
+            if (gameManager != null && gameManager.Events != null)
+            {
+                gameManager.Events.Beat -= OnBeat;
+                gameManager.Events.NodeSuccess -= OnNodeSuccess;
+                gameManager.Events.NodeMiss -= OnNodeMiss;
             }
         }
 
-        if (now < nextBeatDspTime) return;
-
-        float beatDur = (float)beatDuration;
-
-        while (now >= nextBeatDspTime)
+        public void PlayStageMusic(AudioClip clip, float stageBpm, float stageFirstBeatOffset, float forcedSongLengthSeconds)
         {
-            var info = new BeatInfo(beatIndex, nextBeatDspTime, beatDur);
-            gameManager.Events.RaiseBeat(info);
+            AutoBindSourcesIfNeeded();
 
-            beatIndex++;
-            nextBeatDspTime = dspStartTime + firstBeatOffset + (beatIndex * beatDuration);
+            if (musicSource == null || clip == null) return;
 
-            if (beatIndex > 200000) break;
+            musicSource.Stop();
+            musicSource.clip = clip;
+
+            bpm = Mathf.Max(1f, stageBpm);
+            firstBeatOffset = Mathf.Max(0f, stageFirstBeatOffset);
+
+            beatDuration = 60.0 / bpm;
+
+            dspStartTime = AudioSettings.dspTime + dspStartDelay;
+            musicSource.PlayScheduled(dspStartTime);
+
+            scheduled = true;
+            songEndedRaised = false;
+
+            beatIndex = 0;
+            nextBeatDspTime = dspStartTime + firstBeatOffset;
+
+            double clipLen = clip.length;
+            songLength = forcedSongLengthSeconds > 0f ? forcedSongLengthSeconds : clipLen;
         }
-    }
 
-    private void OnBeat(BeatInfo info)
-    {
-        if (!playBeatTick) return;
-        if (beatTickClip != null && sfxSource != null)
+        public void StopStageMusic()
         {
-            sfxSource.PlayOneShot(beatTickClip);
+            AutoBindSourcesIfNeeded();
+
+            if (musicSource == null) return;
+
+            musicSource.Stop();
+            scheduled = false;
+            songEndedRaised = true;
         }
-    }
 
-    private void OnNodeSuccess()
-    {
-        if (hitClip != null && sfxSource != null)
+        public void SetPaused(bool paused)
         {
-            sfxSource.PlayOneShot(hitClip);
+            AutoBindSourcesIfNeeded();
+
+            if (musicSource == null) return;
+
+            if (paused) musicSource.Pause();
+            else musicSource.UnPause();
         }
-    }
 
-    private void OnNodeMiss()
-    {
-        if (missClip != null && sfxSource != null)
+        private void Update()
         {
-            sfxSource.PlayOneShot(missClip);
+            if (!scheduled) return;
+
+            double now = AudioSettings.dspTime;
+
+            if (!songEndedRaised)
+            {
+                double songDspTime = now - dspStartTime;
+                if (songDspTime >= songLength)
+                {
+                    songEndedRaised = true;
+                    gameManager.Events.RaiseSongEnded();
+                }
+            }
+
+            if (now < nextBeatDspTime) return;
+
+            float beatDur = (float)beatDuration;
+
+            while (now >= nextBeatDspTime)
+            {
+                var info = new BeatInfo(beatIndex, nextBeatDspTime, beatDur);
+                gameManager.Events.RaiseBeat(info);
+
+                beatIndex++;
+                nextBeatDspTime = dspStartTime + firstBeatOffset + (beatIndex * beatDuration);
+
+                if (beatIndex > 200000) break;
+            }
+        }
+
+        private void OnBeat(BeatInfo info)
+        {
+            if (!playBeatTick) return;
+            if (beatTickClip != null && sfxSource != null)
+            {
+                sfxSource.PlayOneShot(beatTickClip);
+            }
+        }
+
+        private void OnNodeSuccess()
+        {
+            if (hitClip != null && sfxSource != null)
+            {
+                sfxSource.PlayOneShot(hitClip);
+            }
+        }
+
+        private void OnNodeMiss()
+        {
+            if (missClip != null && sfxSource != null)
+            {
+                sfxSource.PlayOneShot(missClip);
+            }
         }
     }
 }

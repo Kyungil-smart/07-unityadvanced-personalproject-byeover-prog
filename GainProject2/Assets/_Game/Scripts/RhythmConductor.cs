@@ -1,177 +1,123 @@
 using System;
 using UnityEngine;
 
-namespace GnalIhu.Rhythm
+public class RhythmConductor : MonoBehaviour
 {
-    public class RhythmConductor : MonoBehaviour
+    [Header("리듬")]
+    [SerializeField, Min(1f)] private float bpm = 130f;
+    [SerializeField, Min(0f)] private float leadInSeconds = 0f;
+    [SerializeField] private bool playOnStart = false;
+
+    [Header("오디오")]
+    [SerializeField] private AudioSource musicSource;
+
+    public event Action OnStarted;
+    public event Action<int> OnBeat;
+
+    private bool _running;
+    private bool _isPaused;
+    private double _startTime;
+    private double _pauseStartTime;
+    private int _lastBeatIndex = -1;
+
+    public bool IsRunning => _running;
+    public float Bpm { get => bpm; set => bpm = Mathf.Max(1f, value); }
+    public double BeatDuration => 60.0 / Math.Max(0.0001, bpm);
+    public double SongTime
     {
-        [Header("리듬")]
-        [SerializeField, Min(1f)]
-        [Tooltip("BPM(1분당 박자 수). 예: 120이면 0.5초마다 1박입니다.")]
-        private float bpm = 120f;
-
-        [SerializeField, Min(0f)]
-        [Tooltip("시작 후 첫 박(0박)이 시작되기 전 대기 시간(초). 인트로/카운트인 용도.")]
-        private float leadInSeconds = 0f;
-
-        [SerializeField]
-        [Tooltip("true면 Start()에서 자동 재생합니다.")]
-        private bool playOnStart = true;
-
-        [Header("오디오(선택)")]
-        [SerializeField]
-        [Tooltip("리듬에 맞출 음악 AudioSource(선택). 비워도 동작합니다.")]
-        private AudioSource musicSource;
-
-        [SerializeField]
-        [Tooltip("true면 AudioSettings.dspTime 기반으로 시간 계산(리듬게임 권장). false면 Time.timeAsDouble 사용.")]
-        private bool useDspTime = true;
-
-        public event Action OnStarted;
-        public event Action<int> OnBeat;
-
-        private bool _running;
-        private bool _isPaused;
-        private double _startTime;
-        private double _pauseStartTime;
-        private int _lastBeatIndex = -1;
-
-        public bool IsRunning => _running;
-
-        public double BeatDuration => 60.0 / Math.Max(0.0001, bpm);
-        
-        public double SongTime
+        get
         {
-            get
-            {
-                if (!_running && !_isPaused) return 0;
-                
-                // 일시정지 중이면 멈췄던 시점의 시간을 반환합니다.
-                if (_isPaused) return _pauseStartTime - _startTime; 
-
-                double now = useDspTime ? AudioSettings.dspTime : Time.timeAsDouble;
-                return now - _startTime;
-            }
+            if (!_running && !_isPaused) return 0;
+            if (_isPaused) return _pauseStartTime - _startTime;
+            return AudioSettings.dspTime - _startTime;
         }
-        
-        public double CurrentBeat => SongTime / BeatDuration;
+    }
+    public double CurrentBeat => SongTime / BeatDuration;
 
-        private void Start()
+    private void Awake()
+    {
+        if (musicSource == null)
         {
-            if (playOnStart)
-                Play();
+            musicSource = GetComponent<AudioSource>();
+            if (musicSource == null)
+                musicSource = gameObject.AddComponent<AudioSource>();
+        }
+        musicSource.playOnAwake = false;
+    }
+
+    private void Start()
+    {
+        if (playOnStart) Play();
+    }
+
+    public void SetStageMusic(AudioClip clip, float stageBpm, float offset)
+    {
+        if (musicSource != null) musicSource.clip = clip;
+        bpm = Mathf.Max(1f, stageBpm);
+        leadInSeconds = Mathf.Max(0f, offset);
+    }
+
+    /// <summary>★ 항상 리셋하고 처음부터 시작</summary>
+    public void Play()
+    {
+        // 이미 돌고 있으면 먼저 정지
+        if (_running || _isPaused) Stop();
+
+        _running = true;
+        _isPaused = false;
+        _lastBeatIndex = -1;
+
+        double now = AudioSettings.dspTime;
+        _startTime = now + leadInSeconds;
+
+        if (musicSource != null && musicSource.clip != null)
+        {
+            musicSource.Stop();
+            musicSource.PlayScheduled(_startTime);
         }
 
-        public void SetStageMusic(AudioClip clip, float stageBpm, float offset)
+        OnStarted?.Invoke();
+    }
+
+    public void Stop()
+    {
+        _running = false;
+        _isPaused = false;
+        _lastBeatIndex = -1;
+        if (musicSource != null) musicSource.Stop();
+    }
+
+    public void PauseMusic()
+    {
+        if (!_running || _isPaused) return;
+        _isPaused = true;
+        _running = false;
+        _pauseStartTime = AudioSettings.dspTime;
+        if (musicSource != null) musicSource.Pause();
+    }
+
+    public void ResumeMusic()
+    {
+        if (!_isPaused) return;
+        _isPaused = false;
+        _running = true;
+        double now = AudioSettings.dspTime;
+        _startTime += now - _pauseStartTime;
+        if (musicSource != null) musicSource.UnPause();
+    }
+
+    private void Update()
+    {
+        if (!_running) return;
+        if (SongTime < 0) return;
+
+        int beatIndex = (int)Math.Floor(CurrentBeat);
+        if (beatIndex <= _lastBeatIndex) return;
+
+        for (int b = _lastBeatIndex + 1; b <= beatIndex; b++)
         {
-            if (musicSource != null)
-            {
-                musicSource.clip = clip;
-            }
-            bpm = stageBpm;
-            leadInSeconds = offset;
+            _lastBeatIndex = b;
+            OnBeat?.Invoke(b);
         }
-
-        public void Play()
-        {
-            if (_running) return;
-
-            _running = true;
-            _isPaused = false;
-            _lastBeatIndex = -1;
-
-            double now = useDspTime ? AudioSettings.dspTime : Time.timeAsDouble;
-            _startTime = now + leadInSeconds;
-
-            if (musicSource != null)
-            {
-                musicSource.Stop();
-
-                if (useDspTime)
-                {
-                    musicSource.PlayScheduled(_startTime);
-                }
-                else
-                {
-                    if (leadInSeconds <= 0f) musicSource.Play();
-                    else Invoke(nameof(PlayMusicTimeBased), leadInSeconds);
-                }
-            }
-
-            OnStarted?.Invoke();
-        }
-
-        private void PlayMusicTimeBased()
-        {
-            if (musicSource != null)
-                musicSource.Play();
-        }
-
-        public void Stop()
-        {
-            _running = false;
-            _isPaused = false;
-            _lastBeatIndex = -1;
-
-            if (musicSource != null)
-                musicSource.Stop();
-        }
-
-        // 튜토리얼 매니저를 위한 일시정지(Pause) 함수
-        public void PauseMusic()
-        {
-            if (!_running || _isPaused) return;
-
-            _isPaused = true;
-            _running = false;
-            
-            // 일시정지를 누른 정확한 시간을 기록합니다.
-            _pauseStartTime = useDspTime ? AudioSettings.dspTime : Time.timeAsDouble;
-
-            if (musicSource != null)
-                musicSource.Pause();
-        }
-
-        // 튜토리얼 매니저를 위한 재생 재개(Resume) 함수
-        public void ResumeMusic()
-        {
-            if (!_isPaused) return;
-
-            _isPaused = false;
-            _running = true;
-
-            double now = useDspTime ? AudioSettings.dspTime : Time.timeAsDouble;
-            double pausedDuration = now - _pauseStartTime; // 얼마나 오래 멈춰있었는지 계산
-            
-            _startTime += pausedDuration; 
-
-            if (musicSource != null)
-                musicSource.UnPause();
-        }
-
-        private void Update()
-        {
-            if (!_running) return;
-
-            // leadIn 구간에서는 비트 이벤트를 내지 않음
-            if (SongTime < 0) return;
-
-            int beatIndex = (int)Math.Floor(CurrentBeat);
-            if (beatIndex <= _lastBeatIndex) return;
-
-            // 프레임이 튀어도 누락 없이 비트 이벤트 발생
-            for (int b = _lastBeatIndex + 1; b <= beatIndex; b++)
-            {
-                _lastBeatIndex = b;
-                OnBeat?.Invoke(b);
-            }
-        }
-
-#if UNITY_EDITOR
-        private void OnValidate()
-        {
-            if (bpm < 1f) bpm = 1f;
-        }
-#endif
     }
 }

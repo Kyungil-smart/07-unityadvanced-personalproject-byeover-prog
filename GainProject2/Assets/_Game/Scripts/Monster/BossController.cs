@@ -23,12 +23,51 @@ public sealed class BossController : MonoBehaviour
     private void Awake()
     {
         currentHp = Mathf.Max(1, realHp);
+        
+        // 루트에 SpriteRenderer가 있고, 자식 Visual에도 SpriteRenderer가 있으면
+        // 루트의 SpriteRenderer를 끈다 (Visual만 보이게)
+        FixDuplicateSpriteRenderers();
 
         if (hpBarUI == null)
-        {
             hpBarUI = FindObjectOfType<BossHpBarUI>(true);
+
+        SyncUI(true);
+    }
+    
+    private void FixDuplicateSpriteRenderers()
+    {
+        var rootSR = GetComponent<SpriteRenderer>();
+        if (rootSR == null) return;
+
+        // 자식에서 Visual SpriteRenderer 찾기
+        SpriteRenderer childSR = null;
+        var childSRs = GetComponentsInChildren<SpriteRenderer>(true);
+        foreach (var sr in childSRs)
+        {
+            if (sr != rootSR) // 루트가 아닌 자식
+            {
+                childSR = sr;
+                break;
+            }
         }
 
+        if (childSR == null) return; // 자식에 SR이 없으면 건드리지 않음
+
+        // 루트 SpriteRenderer 비활성화 (2마리 문제 해결)
+        rootSR.enabled = false;
+
+        // BossHitReact가 루트 SR을 참조하고 있으면 자식 SR로 교체
+        var hitReact = GetComponent<_Game.Scripts.Rhythm.BossHitReact>();
+        if (hitReact != null)
+        {
+            hitReact.OverrideBossSprite(childSR);
+        }
+    }
+
+    // 런타임에서 HP바 UI 연결
+    public void SetHpBarUI(BossHpBarUI ui)
+    {
+        hpBarUI = ui;
         SyncUI(true);
     }
 
@@ -37,7 +76,6 @@ public sealed class BossController : MonoBehaviour
         if (damage <= 0) return;
 
         currentHp = Mathf.Max(0, currentHp - damage);
-
         LightningHit();
 
         if (currentHp <= 0)

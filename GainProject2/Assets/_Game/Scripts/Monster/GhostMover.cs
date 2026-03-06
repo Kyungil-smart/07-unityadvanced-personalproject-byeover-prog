@@ -1,5 +1,4 @@
 using UnityEngine;
-using GnalIhu.Rhythm;
 
 namespace _Game.Scripts.Monster
 {
@@ -15,20 +14,22 @@ namespace _Game.Scripts.Monster
         private int lastStep = -1;
         private Vector3 targetPosition;
         private Vector3 velocity;
+        private bool initialized;
 
         public void Initialize(RhythmConductor syncConductor)
         {
+            if (syncConductor == null) return;
             conductor = syncConductor;
             targetPosition = transform.position;
-            spawnBeat = conductor.CurrentBeat; // 자신이 태어난 정확한 엇박 타이밍을 기억!
+            spawnBeat = conductor.CurrentBeat;
             lastStep = 0;
+            initialized = true;
         }
 
         private void Update()
         {
-            if (conductor == null || !conductor.IsRunning) return;
+            if (!initialized || conductor == null) return;
 
-            // 태어난 지 몇 박자가 지났는지 계산
             float ageInBeats = (float)(conductor.CurrentBeat - spawnBeat);
             int currentStep = Mathf.FloorToInt(ageInBeats);
 
@@ -36,7 +37,7 @@ namespace _Game.Scripts.Monster
             {
                 int stepsToTake = currentStep - lastStep;
                 lastStep = currentStep;
-                targetPosition += moveDirection * (stepDistance * stepsToTake);
+                targetPosition += moveDirection.normalized * (stepDistance * stepsToTake);
             }
 
             transform.position = Vector3.SmoothDamp(transform.position, targetPosition, ref velocity, smoothTime);

@@ -1,3 +1,4 @@
+using System.Collections;
 using UnityEngine;
 
 namespace _Game.Scripts.Rhythm
@@ -6,32 +7,21 @@ namespace _Game.Scripts.Rhythm
     public sealed class HitBarEffect : MonoBehaviour
     {
         [Header("참조")]
-        [Tooltip("바 SpriteRenderer")]
         [SerializeField] private SpriteRenderer barRenderer;
 
         [Header("플래시")]
-        [Tooltip("반짝 유지 시간(초)")]
-        [Min(0.01f)]
-        [SerializeField] private float holdDuration = 0.05f;
+        [SerializeField, Tooltip("최대 밝기 유지 시간"), Min(0.01f)]
+        private float holdDuration = 0.03f;
 
-        [Tooltip("사라지는 시간(초)")]
-        [Min(0.01f)]
-        [SerializeField] private float fadeDuration = 0.12f;
+        [SerializeField, Tooltip("페이드아웃 시간"), Min(0.01f)]
+        private float fadeDuration = 0.2f;
 
-        [Tooltip("unscaled 시간 사용")]
-        [SerializeField] private bool useUnscaledTime = true;
+        [SerializeField, Tooltip("타임스케일 무시")]
+        private bool useUnscaledTime = true;
 
         private HitBarPool _pool;
-        private float _t;
-        private float _end;
-        private float _holdEnd;
         private Color _baseColor;
-        private bool _running;
-
-        public void SetPool(HitBarPool pool)
-        {
-            _pool = pool;
-        }
+        private Coroutine _running;
 
         private void Awake()
         {
@@ -39,14 +29,16 @@ namespace _Game.Scripts.Rhythm
             if (barRenderer != null) _baseColor = barRenderer.color;
         }
 
+        public void SetPool(HitBarPool pool) => _pool = pool;
+
         public void PlayFlash(Vector3 position, Color color, float widthScale, float heightScale, int sortingOrder)
         {
             transform.position = position;
-            transform.localScale = new Vector3(widthScale, heightScale, 1f);
-
-            _t = 0f;
-            _holdEnd = Mathf.Max(0.01f, holdDuration);
-            _end = _holdEnd + Mathf.Max(0.01f, fadeDuration);
+            transform.localScale = new Vector3(
+                Mathf.Max(0.001f, widthScale),
+                Mathf.Max(0.001f, heightScale),
+                1f
+            );
 
             _baseColor = color;
 
@@ -56,45 +48,51 @@ namespace _Game.Scripts.Rhythm
                 barRenderer.sortingOrder = sortingOrder;
             }
 
-            _running = true;
+            if (_running != null) StopCoroutine(_running);
+            _running = StartCoroutine(CoFlash());
         }
 
-        private void Update()
+        private IEnumerator CoFlash()
         {
-            if (!_running) return;
+            // Hold: 최대 밝기 유지
+            SetAlpha(_baseColor.a);
 
-            float dt = useUnscaledTime ? Time.unscaledDeltaTime : Time.deltaTime;
-            _t += dt;
-
-            if (_t <= _holdEnd)
-                return;
-
-            float u = Mathf.Clamp01((_t - _holdEnd) / Mathf.Max(0.01f, fadeDuration));
-
-            if (barRenderer != null)
+            float t = 0f;
+            while (t < holdDuration)
             {
-                Color c = _baseColor;
-                c.a = Mathf.Lerp(_baseColor.a, 0f, u);
-                barRenderer.color = c;
+                t += Dt();
+                yield return null;
             }
 
-            if (_t >= _end)
-                Despawn();
-        }
-
-        private void Despawn()
-        {
-            _running = false;
-
-            if (barRenderer != null)
+            // Fade: 부드럽게 사라짐 (EaseOut)
+            t = 0f;
+            float fd = Mathf.Max(0.001f, fadeDuration);
+            while (t < fd)
             {
-                Color c = _baseColor;
-                c.a = 1f;
-                barRenderer.color = c;
+                t += Dt();
+                float progress = Mathf.Clamp01(t / fd);
+                // EaseOutQuad: 처음에 빨리 사라지고 끝에 천천히
+                float eased = 1f - (1f - progress) * (1f - progress);
+                float alpha = Mathf.Lerp(_baseColor.a, 0f, eased);
+                SetAlpha(alpha);
+                yield return null;
             }
+
+            SetAlpha(0f);
+            _running = null;
 
             if (_pool != null) _pool.Return(this);
             else gameObject.SetActive(false);
         }
+
+        private void SetAlpha(float a)
+        {
+            if (barRenderer == null) return;
+            var c = _baseColor;
+            c.a = a;
+            barRenderer.color = c;
+        }
+
+        private float Dt() => useUnscaledTime ? Time.unscaledDeltaTime : Time.deltaTime;
     }
 }

@@ -3,90 +3,120 @@ using UnityEngine.UI;
 
 public sealed class OptionMenuUI : MonoBehaviour
 {
-    [Header("옵션 패널")]
+    [Header("패널")]
     [SerializeField] private GameObject optionPanel;
-    [SerializeField] private GameObject warningPanel;
 
-    [Header("컨트롤 UI")]
-    [SerializeField] private Slider volumeSlider;
-    [SerializeField] private Dropdown difficultyDropdown;
-    [SerializeField] private Dropdown resolutionDropdown;
-    [SerializeField] private Dropdown frameRateDropdown;
+    [Header("볼륨")]
+    [SerializeField] private Slider bgmSlider;
+    [SerializeField] private Slider sfxSlider;
+    [SerializeField, Tooltip("BGM 숫자 표시")] private TMPro.TMP_Text bgmValueText;
+    [SerializeField, Tooltip("SFX 숫자 표시")] private TMPro.TMP_Text sfxValueText;
+    [SerializeField, Tooltip("BGM AudioSource")] private AudioSource bgmSource;
+    [SerializeField, Tooltip("SFX AudioSource")] private AudioSource sfxSource;
+
+    [Header("히트라인(부적)")]
+    [SerializeField, Tooltip("히트라인 오브젝트들")] private GameObject[] hitLineObjects;
+    [SerializeField] private Toggle hitLineToggle;
 
     [Header("버튼")]
-    [SerializeField] private Button applyDifficultyButton;
-    [SerializeField] private Button cancelDifficultyButton;
+    [SerializeField] private Button hideButton;
+    [SerializeField] private Button quitButton;
 
     private GameManager gameManager;
+    private bool isOpen;
 
     private void Awake()
     {
         gameManager = GameManager.Instance;
 
-        optionPanel.SetActive(false);
-        warningPanel.SetActive(false);
+        if (optionPanel != null) optionPanel.SetActive(false);
+        isOpen = false;
 
-        volumeSlider.onValueChanged.AddListener(OnVolumeChanged);
-        difficultyDropdown.onValueChanged.AddListener(OnDifficultyChanged);
-        resolutionDropdown.onValueChanged.AddListener(OnResolutionChanged);
-        frameRateDropdown.onValueChanged.AddListener(OnFrameRateChanged);
+        if (bgmSlider != null)
+        {
+            bgmSlider.value = PlayerPrefs.GetFloat("BGMVolume", 1f);
+            bgmSlider.onValueChanged.AddListener(OnBgmChanged);
+            OnBgmChanged(bgmSlider.value);
+        }
 
-        applyDifficultyButton.onClick.AddListener(ApplyDifficultyAndRestart);
-        cancelDifficultyButton.onClick.AddListener(CancelDifficultyChange);
+        if (sfxSlider != null)
+        {
+            sfxSlider.value = PlayerPrefs.GetFloat("SFXVolume", 1f);
+            sfxSlider.onValueChanged.AddListener(OnSfxChanged);
+            OnSfxChanged(sfxSlider.value);
+        }
+        
+        if (hitLineToggle != null)
+        {
+            hitLineToggle.isOn = true;
+            hitLineToggle.onValueChanged.AddListener(OnHitLineToggled);
+        }
+
+        // 버튼
+        if (hideButton != null) hideButton.onClick.AddListener(Close);
+        if (quitButton != null) quitButton.onClick.AddListener(QuitGame);
     }
 
     private void Update()
     {
         if (Input.GetKeyDown(KeyCode.Escape))
         {
-            ToggleOptionMenu();
+            if (isOpen) Close();
+            else Open();
         }
     }
 
-    public void ToggleOptionMenu()
+    public void Open()
     {
-        if (warningPanel.activeSelf) return; 
+        if (optionPanel == null) return;
+        isOpen = true;
+        optionPanel.SetActive(true);
 
-        bool willShow = !optionPanel.activeSelf;
-        optionPanel.SetActive(willShow);
-
-        if (gameManager != null)
-        {
-            gameManager.SetPaused(willShow);
-        }
+        if (gameManager != null) gameManager.SetPaused(true);
     }
 
-    private void OnVolumeChanged(float value) => AudioListener.volume = value;
-
-    private void OnDifficultyChanged(int index) => warningPanel.SetActive(true);
-
-    private void ApplyDifficultyAndRestart()
+    public void Close()
     {
-        warningPanel.SetActive(false);
+        if (optionPanel == null) return;
+        isOpen = false;
         optionPanel.SetActive(false);
 
-        if (gameManager != null)
+        if (gameManager != null) gameManager.SetPaused(false);
+    }
+
+    private void OnBgmChanged(float value)
+    {
+        if (bgmSource != null) bgmSource.volume = value;
+        if (bgmValueText != null) bgmValueText.text = Mathf.RoundToInt(value * 100).ToString();
+        PlayerPrefs.SetFloat("BGMVolume", value);
+    }
+
+    private void OnSfxChanged(float value)
+    {
+        if (sfxSource != null) sfxSource.volume = value;
+        if (sfxValueText != null) sfxValueText.text = Mathf.RoundToInt(value * 100).ToString();
+        PlayerPrefs.SetFloat("SFXVolume", value);
+    }
+
+    private void OnHitLineToggled(bool visible)
+    {
+        if (hitLineObjects == null) return;
+        foreach (var obj in hitLineObjects)
         {
-            gameManager.RestartCurrentStage();
+            if (obj != null) obj.SetActive(visible);
         }
     }
 
-    private void CancelDifficultyChange() => warningPanel.SetActive(false);
-
-    private void OnResolutionChanged(int index)
+    private void QuitGame()
     {
-        if (index == 0) Screen.SetResolution(1920, 1080, true);
-        else if (index == 1) Screen.SetResolution(1280, 720, false);
-    }
-
-    private void OnFrameRateChanged(int index)
-    {
-        Application.targetFrameRate = index switch
+        if (gameManager != null) gameManager.QuitGame();
+        else
         {
-            0 => 60,
-            1 => 120,
-            2 => 144,
-            _ => 60
-        };
+#if UNITY_EDITOR
+            UnityEditor.EditorApplication.isPlaying = false;
+#else
+            Application.Quit();
+#endif
+        }
     }
 }

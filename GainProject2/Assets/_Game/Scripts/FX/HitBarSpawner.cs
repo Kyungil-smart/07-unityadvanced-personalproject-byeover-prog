@@ -1,54 +1,34 @@
 using UnityEngine;
 
-//툴팁을 안적으면 죽는 병에 걸렸습니다.
-
 namespace _Game.Scripts.Rhythm
 {
     [DisallowMultipleComponent]
     public sealed class HitBarSpawner : MonoBehaviour
     {
         [Header("참조")]
-        [Tooltip("바 풀")]
         [SerializeField] private HitBarPool barPool;
-
-        [Tooltip("히트 기준 위치(히트라인)")]
         [SerializeField] private Transform hitPoint;
-
-        [Tooltip("기준 카메라(없으면 Main Camera)")]
         [SerializeField] private Camera targetCamera;
 
-        [Header("입력")]
-        [Tooltip("입력 시 바 생성(테스트/기본)")]
-        [SerializeField] private bool spawnOnKey = true;
-
-        [Tooltip("리듬 입력 키(1키)")]
-        [SerializeField] private KeyCode rhythmKey = KeyCode.Space;
+        [Header("히트 사운드")]
+        [SerializeField] private AudioSource sfxSource;
+        [SerializeField] private AudioClip hitSound;
+        [SerializeField, Range(0f, 1f)] private float hitSoundVolume = 0.7f;
 
         [Header("외형")]
-        [Tooltip("바 색상(회색)")]
-        [SerializeField] private Color barColor = new Color(0.7f, 0.7f, 0.7f, 0.55f);
+        [SerializeField, Tooltip("바 색상")]
+        private Color barColor = new Color(1f, 1f, 1f, 0.35f);
 
-        [Tooltip("세로 길이(카메라 높이 배수). 1.2면 화면 위/아래 약간 넘김")]
-        [Min(0.5f)]
-        [SerializeField] private float heightMultiplier = 1.2f;
+        [SerializeField, Tooltip("바 두께"), Min(0.01f)]
+        private float barWidth = 0.04f;
 
-        [Tooltip("바 두께(유닛)")]
-        [Min(0.01f)]
-        [SerializeField] private float barWidth = 0.08f;
+        [SerializeField, Tooltip("세로 길이 배수"), Min(0.5f)]
+        private float heightMultiplier = 1.1f;
 
-        [Tooltip("두 줄로 보이게 할지")]
-        [SerializeField] private bool doubleLine = true;
+        [SerializeField, Tooltip("앞으로 나오게")]
+        private int sortingOrder = 200;
 
-        [Tooltip("두 줄 간격(유닛)")]
-        [Min(0f)]
-        [SerializeField] private float doubleLineGap = 0.14f;
-
-        [Tooltip("살짝 랜덤 오프셋(유닛)")]
-        [Min(0f)]
-        [SerializeField] private float randomXJitter = 0.04f;
-
-        [Tooltip("앞으로 나오게 SortingOrder")]
-        [SerializeField] private int sortingOrder = 200;
+        private GameManager gameManager;
 
         private void Awake()
         {
@@ -57,10 +37,25 @@ namespace _Game.Scripts.Rhythm
             if (barPool != null) barPool.Prewarm();
         }
 
-        private void Update()
+        private void Start()
         {
-            if (!spawnOnKey) return;
-            if (Input.GetKeyDown(rhythmKey)) SpawnFlash();
+            gameManager = GameManager.Instance;
+
+            // NodeSuccess 이벤트 구독 — 히트 성공할 때만 바 생성
+            if (gameManager != null && gameManager.Events != null)
+                gameManager.Events.NodeSuccess += OnNodeSuccess;
+        }
+
+        private void OnDestroy()
+        {
+            if (gameManager != null && gameManager.Events != null)
+                gameManager.Events.NodeSuccess -= OnNodeSuccess;
+        }
+
+        private void OnNodeSuccess()
+        {
+            SpawnFlash();
+            PlayHitSound();
         }
 
         public void SpawnFlash()
@@ -68,14 +63,9 @@ namespace _Game.Scripts.Rhythm
             if (barPool == null || hitPoint == null) return;
 
             float heightScale = ComputeHeightScale();
-
-            float jitter = (Random.value * 2f - 1f) * randomXJitter;
-            Vector3 basePos = hitPoint.position + new Vector3(jitter, 0f, 0f);
+            Vector3 basePos = hitPoint.position;
 
             SpawnOne(basePos, heightScale);
-
-            if (doubleLine)
-                SpawnOne(basePos + Vector3.right * doubleLineGap, heightScale);
         }
 
         private void SpawnOne(Vector3 pos, float heightScale)
@@ -85,6 +75,16 @@ namespace _Game.Scripts.Rhythm
 
             bar.transform.SetParent(null, true);
             bar.PlayFlash(pos, barColor, barWidth, heightScale, sortingOrder);
+        }
+
+        private void PlayHitSound()
+        {
+            if (hitSound == null) return;
+
+            if (sfxSource != null)
+                sfxSource.PlayOneShot(hitSound, hitSoundVolume);
+            else
+                AudioSource.PlayClipAtPoint(hitSound, Camera.main != null ? Camera.main.transform.position : Vector3.zero, hitSoundVolume);
         }
 
         private float ComputeHeightScale()

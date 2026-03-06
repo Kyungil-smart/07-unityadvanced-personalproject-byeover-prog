@@ -28,6 +28,13 @@ namespace _Game.Scripts.Rhythm
             originalLocalPos = transform.localPosition;
         }
 
+        /// <summary>BossController에서 루트 SR 대신 자식 Visual SR로 교체할 때 호출</summary>
+        public void OverrideBossSprite(SpriteRenderer newSprite)
+        {
+            bossSprite = newSprite;
+            if (bossSprite != null) originalColor = bossSprite.color;
+        }
+
         public void Hit()
         {
             if (runningCoroutine != null) StopCoroutine(runningCoroutine);
@@ -38,7 +45,6 @@ namespace _Game.Scripts.Rhythm
         {
             if (bossSprite != null) bossSprite.color = flashColor;
 
-            // 경고 해결: flashDuration 변수 사용
             float timer = 0f;
             while (timer < flashDuration)
             {

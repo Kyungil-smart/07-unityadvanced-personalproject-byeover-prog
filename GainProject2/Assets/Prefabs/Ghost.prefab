@@ -198,9 +198,11 @@ MonoBehaviour:
   animator: {fileID: 92781939262750605}
   hitTrigger: Hit
   missTrigger: Miss
-  damageTriggerCollider: {fileID: 0}
+  damageTriggerCollider: {fileID: 7943205107283124487}
   despawnX: -30
   hitReturnDelay: 0.05
+  missSpeed: 8
+  missDirection: {x: -1, y: 0, z: 0}
 --- !u!114 &-3463737173423263109
 MonoBehaviour:
   m_ObjectHideFlags: 0

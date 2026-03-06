@@ -14,7 +14,7 @@ GameObject:
   - component: {fileID: 7260550090257244807}
   - component: {fileID: -5064526819858644656}
   - component: {fileID: 1210204304238573744}
-  - component: {fileID: -597100105114355210}
+  - component: {fileID: -6677192687894256916}
   m_Layer: 0
   m_Name: Raven
   m_TagString: Untagged
@@ -198,10 +198,12 @@ MonoBehaviour:
   animator: {fileID: 9147980615461403044}
   hitTrigger: Hit
   missTrigger: Miss
-  damageTriggerCollider: {fileID: 0}
+  damageTriggerCollider: {fileID: 7260550090257244807}
   despawnX: -30
   hitReturnDelay: 0.05
---- !u!114 &-597100105114355210
+  missSpeed: 8
+  missDirection: {x: -1, y: 0, z: 0}
+--- !u!114 &-6677192687894256916
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -210,8 +212,9 @@ MonoBehaviour:
   m_GameObject: {fileID: 292485049382710945}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: ad032deb2020489428affe9dbf544168, type: 3}
+  m_Script: {fileID: 11500000, guid: c5b22b99b86324340bfc971a3485ff0c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  stepDirection: {x: -1, y: 0, z: 0}
-  useLocalSpace: 0
+  moveDirection: {x: -1, y: 0, z: 0}
+  stepDistance: 2
+  smoothTime: 0.05

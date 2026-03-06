@@ -1,72 +1,101 @@
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.SceneManagement;
+using TMPro;
 
 public sealed class GameResultUI : MonoBehaviour
 {
-    [Header("루트 오브젝트")]
+    [Header("루트")]
     [SerializeField] private GameObject resultPanel;
-    [SerializeField] private GameObject clearTitle;
-    [SerializeField] private GameObject failTitle;
 
-    [Header("텍스트")]
-    [SerializeField] private Text gradeText;
+    [Header("클리어")]
+    [SerializeField] private GameObject clearGroup;
+    [SerializeField] private TMP_Text clearText;
+
+    [Header("패배")]
+    [SerializeField] private GameObject failGroup;
+    [SerializeField] private TMP_Text failText;
 
     [Header("버튼")]
-    [SerializeField] private Button nextButton;
     [SerializeField] private Button retryButton;
     [SerializeField] private Button menuButton;
+
+    [Header("메인메뉴 씬")]
+    [SerializeField] private string mainMenuSceneName = "MainMenu";
 
     private GameManager gameManager;
 
     private void Awake()
     {
+        if (resultPanel != null) resultPanel.SetActive(false);
+
+        if (retryButton != null) retryButton.onClick.AddListener(OnRetry);
+        if (menuButton != null) menuButton.onClick.AddListener(OnMenu);
+    }
+
+    private void Start()
+    {
         gameManager = GameManager.Instance;
 
-        nextButton.onClick.AddListener(OnClickNext);
-        retryButton.onClick.AddListener(OnClickRetry);
-        menuButton.onClick.AddListener(OnClickMenu);
-
-        resultPanel.SetActive(false);
+        if (gameManager != null && gameManager.Events != null)
+        {
+            gameManager.Events.GameStateChanged += OnGameStateChanged;
+        }
     }
 
-    public void ShowResult(bool isClear, float accuracy)
+    private void OnDestroy()
     {
-        resultPanel.SetActive(true);
-        clearTitle.SetActive(isClear);
-        failTitle.SetActive(!isClear);
-        nextButton.gameObject.SetActive(isClear);
-        
-        gradeText.text = CalculateGrade(accuracy);
+        if (gameManager != null && gameManager.Events != null)
+        {
+            gameManager.Events.GameStateChanged -= OnGameStateChanged;
+        }
     }
 
-    private string CalculateGrade(float accuracy)
+    private void OnGameStateChanged(GameState state)
     {
-        if (accuracy >= 0.95f) return "SS";
-        if (accuracy >= 0.90f) return "S+";
-        if (accuracy >= 0.80f) return "S";
-        if (accuracy >= 0.70f) return "A";
-        if (accuracy >= 0.50f) return "B";
-        return "C";
+        switch (state)
+        {
+            case GameState.StageClear:
+                ShowClear();
+                break;
+            case GameState.StageFailed:
+                ShowFail();
+                break;
+        }
     }
 
-    private void OnClickNext()
+    private void ShowClear()
     {
-        resultPanel.SetActive(false);
-        gameManager.Session.AdvanceToNextStage();
+        if (resultPanel != null) resultPanel.SetActive(true);
+        if (clearGroup != null) clearGroup.SetActive(true);
+        if (failGroup != null) failGroup.SetActive(false);
+        if (clearText != null) clearText.text = "스테이지 클리어!";
     }
 
-    private void OnOnClickNext() => OnClickNext(); // 오타 방지용 브릿지
-
-    private void OnClickRetry()
+    private void ShowFail()
     {
-        resultPanel.SetActive(false);
-        gameManager.RestartCurrentStage();
+        if (resultPanel != null) resultPanel.SetActive(true);
+        if (clearGroup != null) clearGroup.SetActive(false);
+        if (failGroup != null) failGroup.SetActive(true);
+        if (failText != null) failText.text = "패배";
+
+        Time.timeScale = 0f;
     }
 
-    private void OnClickMenu()
+    private void OnRetry()
     {
+        if (resultPanel != null) resultPanel.SetActive(false);
         Time.timeScale = 1f;
-        SceneManager.LoadScene(0); 
+
+        if (gameManager != null)
+            gameManager.RestartCurrentStage();
+    }
+
+    private void OnMenu()
+    {
+        if (resultPanel != null) resultPanel.SetActive(false);
+        Time.timeScale = 1f;
+
+        SceneManager.LoadScene(mainMenuSceneName);
     }
 }
